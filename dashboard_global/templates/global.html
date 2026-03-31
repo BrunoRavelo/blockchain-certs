@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Demo — Dashboard Global</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='global.css') }}">
+</head>
+<body>
+    <div class="container">
+
+        <!-- Header -->
+        <div class="header">
+            <h1>🌐 Dashboard Global</h1>
+            <div class="header-meta">
+                <span class="badge" id="seed-badge">Seed: ...</span>
+                <span class="badge" id="refresh-badge">Actualizando...</span>
+            </div>
+        </div>
+
+        <!-- Notificación -->
+        <div id="notification" class="notification hidden"></div>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- RESUMEN DE LA RED                                   -->
+        <!-- ═══════════════════════════════════════════════════ -->
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-value" id="s-total-nodes">-</div>
+                <div class="summary-label">Nodos totales</div>
+            </div>
+            <div class="summary-card green">
+                <div class="summary-value" id="s-online">-</div>
+                <div class="summary-label">En línea</div>
+            </div>
+            <div class="summary-card red">
+                <div class="summary-value" id="s-offline">-</div>
+                <div class="summary-label">Sin conexión</div>
+            </div>
+            <div class="summary-card blue">
+                <div class="summary-value" id="s-height">-</div>
+                <div class="summary-label">Altura máxima</div>
+            </div>
+            <div class="summary-card orange">
+                <div class="summary-value" id="s-out-sync">-</div>
+                <div class="summary-label">Desfasados</div>
+            </div>
+            <div class="summary-card purple">
+                <div class="summary-value" id="s-mempool">-</div>
+                <div class="summary-label">TXs en mempool</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="s-mined">-</div>
+                <div class="summary-label">Bloques minados</div>
+            </div>
+            <div class="summary-card green">
+                <div class="summary-value" id="s-mining-auto">-</div>
+                <div class="summary-label">Minando en AUTO</div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- VISTA DE LA CADENA                                  -->
+        <!-- ═══════════════════════════════════════════════════ -->
+        <div class="card">
+            <div class="chain-header">
+                <h2>Blockchain</h2>
+                <span class="chain-source" id="chain-source"></span>
+            </div>
+
+            <!-- Último bloque destacado -->
+            <div class="latest-block-info" id="latest-block-info" style="display:none;">
+                <div class="latest-block-grid">
+                    <div class="latest-info-item">
+                        <span class="latest-label">Último bloque</span>
+                        <span class="latest-value monospace" id="lb-height">#-</span>
+                    </div>
+                    <div class="latest-info-item">
+                        <span class="latest-label">Hash</span>
+                        <span class="latest-value monospace small" id="lb-hash">-</span>
+                    </div>
+                    <div class="latest-info-item">
+                        <span class="latest-label">Nonce</span>
+                        <span class="latest-value" id="lb-nonce">-</span>
+                    </div>
+                    <div class="latest-info-item">
+                        <span class="latest-label">Transacciones</span>
+                        <span class="latest-value" id="lb-txs">-</span>
+                    </div>
+                    <div class="latest-info-item">
+                        <span class="latest-label">Minado por</span>
+                        <span class="latest-value monospace small" id="lb-miner">-</span>
+                    </div>
+                    <div class="latest-info-item">
+                        <span class="latest-label">Hora</span>
+                        <span class="latest-value" id="lb-time">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vista gráfica de la cadena -->
+            <div class="chain-scroll-wrapper">
+                <div class="chain-visual" id="chain-visual">
+                    <div class="chain-loading">Cargando cadena...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- PANEL DE DETALLE DE BLOQUE (oculto por defecto)    -->
+        <!-- ═══════════════════════════════════════════════════ -->
+        <div class="card block-detail-panel hidden" id="block-detail-panel">
+            <div class="block-detail-header">
+                <h2>Detalle del Bloque <span id="bd-height"></span></h2>
+                <button class="btn-close" onclick="closeBlockDetail()">✕ Cerrar</button>
+            </div>
+
+            <div class="block-detail-meta">
+                <div class="bd-item">
+                    <span class="bd-label">Hash</span>
+                    <span class="bd-value monospace" id="bd-hash">-</span>
+                </div>
+                <div class="bd-item">
+                    <span class="bd-label">Hash anterior</span>
+                    <span class="bd-value monospace" id="bd-prev-hash">-</span>
+                </div>
+                <div class="bd-item">
+                    <span class="bd-label">Merkle Root</span>
+                    <span class="bd-value monospace" id="bd-merkle">-</span>
+                </div>
+                <div class="bd-item">
+                    <span class="bd-label">Nonce</span>
+                    <span class="bd-value" id="bd-nonce">-</span>
+                </div>
+                <div class="bd-item">
+                    <span class="bd-label">Target</span>
+                    <span class="bd-value monospace" id="bd-target">-</span>
+                </div>
+                <div class="bd-item">
+                    <span class="bd-label">Timestamp</span>
+                    <span class="bd-value" id="bd-timestamp">-</span>
+                </div>
+            </div>
+
+            <h3 style="margin: 20px 0 12px;">
+                Transacciones
+                <span class="tx-count-badge" id="bd-tx-count"></span>
+            </h3>
+            <div class="tx-list-detail" id="bd-tx-list">
+                <div class="empty">Cargando transacciones...</div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- CONTROL DE MINADO (toda la red)                    -->
+        <!-- ═══════════════════════════════════════════════════ -->
+        <div class="card">
+            <h2>Control de Minado — Toda la Red</h2>
+            <div class="orch-grid">
+                <div class="orch-stats">
+                    <div class="info-item">
+                        <span class="label">Minando en AUTO:</span>
+                        <span class="value" id="mining-auto-count">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Estado:</span>
+                        <span class="value" id="mining-global-status">-</span>
+                    </div>
+                </div>
+                <div class="orch-controls">
+                    <button onclick="setAllMining('auto')"   class="btn-mode" id="btn-mine-all-auto">⚙ AUTO (todos)</button>
+                    <button onclick="setAllMining('manual')" class="btn-mode" id="btn-mine-all-manual">🖐 MANUAL (todos)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- CONTROL DEL ORQUESTADOR                            -->
+        <!-- ═══════════════════════════════════════════════════ -->
+        {% if has_orchestrator %}
+        <div class="card">
+            <h2>Control de Transacciones Automáticas</h2>
+            <div class="orch-grid">
+                <div class="orch-stats">
+                    <div class="info-item">
+                        <span class="label">Modo:</span>
+                        <span class="value" id="orch-mode">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">TXs enviadas:</span>
+                        <span class="value" id="orch-sent">-</span>
+                    </div>
+                    <div class="orch-stats-divider"></div>
+                    <div class="info-item">
+                        <span class="label">Fallidas:</span>
+                        <span class="value orch-failed-value" id="orch-failed">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Tasa de éxito:</span>
+                        <span class="value orch-rate-value" id="orch-rate">-</span>
+                    </div>
+                </div>
+                <div class="orch-controls">
+                    <button onclick="setOrchMode('auto')"   class="btn-mode" id="btn-orch-auto">AUTO</button>
+                    <button onclick="setOrchMode('manual')" class="btn-mode" id="btn-orch-manual">MANUAL</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- TABLA DE NODOS                                      -->
+        <!-- ═══════════════════════════════════════════════════ -->
+        <div class="card">
+            <h2>Estado de los Nodos</h2>
+            <div class="table-wrapper">
+                <table id="nodes-table">
+                    <thead>
+                        <tr>
+                            <th>Nodo</th>
+                            <th>Estado</th>
+                            <th>Altura</th>
+                            <th>Sync</th>
+                            <th>Balance</th>
+                            <th>Peers</th>
+                            <th>Mempool</th>
+                            <th>Minado</th>
+                            <th>Bloques</th>
+                            <th>Dashboard</th>
+                        </tr>
+                    </thead>
+                    <tbody id="nodes-tbody">
+                        <tr>
+                            <td colspan="10" class="empty">Conectando al seed...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="{{ url_for('static', filename='global.js') }}"></script>
+</body>
+</html>

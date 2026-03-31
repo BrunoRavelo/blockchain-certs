@@ -1,0 +1,920 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+
+.header {
+    background: white;
+    padding: 25px 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.header h1 {
+    color: #1a1a2e;
+    margin-bottom: 12px;
+    font-size: 1.8em;
+    letter-spacing: 1px;
+}
+
+.ports {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.port-badge {
+    background: #f0f4ff;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    color: #1a1a2e;
+    font-weight: 600;
+    border: 1px solid #dde3ff;
+}
+
+/* ── Notificación ────────────────────────────────────────── */
+
+.notification {
+    background: #e8f5e9;
+    border: 1px solid #4CAF50;
+    border-left: 4px solid #4CAF50;
+    color: #2e7d32;
+    padding: 12px 20px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    transition: opacity 0.3s;
+}
+
+.notification.hidden {
+    display: none;
+}
+
+/* ── Cards ───────────────────────────────────────────────── */
+
+.card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.card h2 {
+    color: #1a1a2e;
+    margin-bottom: 20px;
+    border-bottom: 3px solid #667eea;
+    padding-bottom: 10px;
+    font-size: 1.3em;
+}
+
+.card h3 {
+    color: #555;
+    font-size: 1em;
+    font-weight: 600;
+}
+
+/* ── Info Grid ───────────────────────────────────────────── */
+
+.info-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.value {
+    color: #1a1a2e;
+    font-weight: 500;
+}
+
+.unit {
+    color: #888;
+    font-size: 0.9em;
+    margin-left: 4px;
+}
+
+.balance {
+    font-size: 1.6em;
+    font-weight: bold;
+    color: #2e7d32;
+}
+
+.monospace {
+    font-family: 'Courier New', monospace;
+    font-size: 0.82em;
+    word-break: break-all;
+}
+
+.small {
+    font-size: 0.78em;
+}
+
+.hint {
+    color: #999;
+    font-size: 0.82em;
+    margin-top: 4px;
+    display: block;
+}
+
+/* ── Formulario TX ───────────────────────────────────────── */
+
+.form-group {
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #333;
+    font-size: 0.95em;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 11px 14px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 15px;
+    transition: border-color 0.3s;
+    background: white;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+/* ── Botones ─────────────────────────────────────────────── */
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    padding: 13px 28px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    width: 100%;
+}
+
+.btn-primary:hover    { opacity: 0.9; }
+.btn-primary:active   { transform: scale(0.98); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-copy {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.82em;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-copy:hover { background: #388e3c; }
+
+/* ── Controles de minado ─────────────────────────────────── */
+
+.mining-controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn-mode {
+    flex: 1;
+    padding: 11px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    background: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #555;
+    min-width: 90px;
+}
+
+.btn-mode:hover { border-color: #667eea; color: #667eea; }
+
+.btn-mode.active[id="btn-auto"]   { background: #e8f5e9; border-color: #4CAF50; color: #2e7d32; }
+.btn-mode.active[id="btn-manual"] { background: #e3f2fd; border-color: #2196F3; color: #1565c0; }
+
+/* ── Indicador de minando ────────────────────────────────── */
+
+.mining-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 15px;
+    color: #2e7d32;
+    font-weight: 600;
+    font-size: 0.95em;
+}
+
+.mining-indicator.hidden { display: none; }
+
+.dot-pulse {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #4CAF50;
+    animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.8); }
+}
+
+/* ── Progreso de minado ────────────────────────────────── */
+
+.mining-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #f0f7ff;
+    border: 1px solid #cce0ff;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: #1a4a8a;
+    font-family: monospace;
+}
+.mining-progress-row.hidden { display: none; }
+
+.pow-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #1976d2;
+    animation: pow-blink 1s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+@keyframes pow-blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.2; }
+}
+
+/* ── Lista de bloques ────────────────────────────────────── */
+
+.blocks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.block-item {
+    background: #f8f9ff;
+    border: 1px solid #e0e4ff;
+    border-left: 4px solid #667eea;
+    border-radius: 8px;
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.block-item:hover { background: #eef0ff; }
+
+.block-header-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+
+.block-height {
+    font-weight: 700;
+    color: #667eea;
+    font-size: 1em;
+    min-width: 35px;
+}
+
+.block-hash {
+    font-family: 'Courier New', monospace;
+    font-size: 0.82em;
+    color: #555;
+    flex: 1;
+}
+
+.block-txs {
+    background: #667eea;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.78em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.block-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 0.8em;
+    color: #888;
+    flex-wrap: wrap;
+}
+
+/* ── Peers ───────────────────────────────────────────────── */
+
+.peer-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 10px;
+}
+
+.peer-list li {
+    padding: 9px 12px;
+    background: #f8fff8;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    border-left: 4px solid #4CAF50;
+    font-size: 0.9em;
+    color: #333;
+}
+
+.peer-dot {
+    color: #4CAF50;
+    margin-right: 6px;
+}
+
+/* ── Mempool ─────────────────────────────────────────────── */
+
+.tx-list {
+    max-height: 350px;
+    overflow-y: auto;
+    margin-top: 10px;
+}
+
+.tx-item {
+    padding: 12px 15px;
+    background: #f9f9f9;
+    border-left: 4px solid #667eea;
+    margin-bottom: 10px;
+    border-radius: 8px;
+}
+
+.tx-hash {
+    font-family: 'Courier New', monospace;
+    color: #888;
+    font-size: 0.8em;
+    margin-bottom: 6px;
+}
+
+.tx-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tx-addr {
+    color: #444;
+    font-size: 0.88em;
+}
+
+.tx-amount {
+    font-weight: bold;
+    color: #2e7d32;
+    font-size: 1em;
+}
+
+.empty {
+    text-align: center;
+    color: #aaa;
+    padding: 25px;
+    font-style: italic;
+    font-size: 0.9em;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+
+.tx-list::-webkit-scrollbar        { width: 6px; }
+.tx-list::-webkit-scrollbar-track  { background: #f1f1f1; border-radius: 3px; }
+.tx-list::-webkit-scrollbar-thumb  { background: #667eea; border-radius: 3px; }
+
+/* ── Modal ───────────────────────────────────────────────── */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+.modal-overlay.hidden { display: none; }
+
+.modal-box {
+    background: white;
+    border-radius: 12px;
+    max-width: 520px;
+    width: 100%;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 24px;
+    border-bottom: 2px solid #f0f0f0;
+}
+.modal-header h3 { color: #1a1a2e; font-size: 1.05em; }
+
+.btn-close-modal {
+    background: none;
+    border: none;
+    font-size: 1.1em;
+    cursor: pointer;
+    color: #888;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+.btn-close-modal:hover { background: #f44336; color: white; }
+
+.modal-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    padding: 14px 24px;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+/* ── Items de verificación ───────────────────────────────── */
+
+.verify-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+.verify-label { font-size: 0.78em; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+.verify-value { font-size: 0.9em; color: #1a1a2e; word-break: break-all; }
+
+.check-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+.check-icon { font-size: 1.3em; flex-shrink: 0; }
+.check-info { flex: 1; }
+.check-label { font-weight: 600; color: #1a1a2e; font-size: 0.95em; }
+.check-detail { font-size: 0.8em; color: #888; margin-top: 2px; }
+
+.verify-result-ok     { background: #f1f8e9; border-radius: 8px; padding: 0 8px; }
+.verify-result-fail   { background: #fce4ec; border-radius: 8px; padding: 0 8px; }
+.verify-all-ok   { text-align:center; padding: 14px; background:#e8f5e9; border-radius:8px; color:#2e7d32; font-weight:700; margin-top:12px; }
+.verify-all-fail { text-align:center; padding: 14px; background:#fce4ec; border-radius:8px; color:#c62828; font-weight:700; margin-top:12px; }
+
+/* ── Botón secundario ────────────────────────────────────── */
+
+.btn-secondary {
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+    padding: 11px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.btn-secondary:hover { background: #667eea; color: white; }
+
+/* ── Botón verificar en bloque ───────────────────────────── */
+.btn-verify {
+    background: none;
+    border: 1px solid #667eea;
+    color: #667eea;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.btn-verify:hover { background: #667eea; color: white; }
+
+
+/* ══════════════════════════════════════════════════════════
+   AGREGAR AL FINAL DE style.css
+   Clases nuevas para el demo de títulos universitarios
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Badges de rol ───────────────────────────────────────── */
+
+.role-badge {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border-color: #c8e6c9;
+}
+
+.institution-badge {
+    background: #e3f2fd;
+    color: #1565c0;
+    border-color: #bbdefb;
+}
+
+/* ── Hint inline (junto a label) ─────────────────────────── */
+
+.hint-inline {
+    font-size: 0.78em;
+    color: #aaa;
+    font-weight: 400;
+}
+
+/* ── Resultados genéricos ─────────────────────────────────── */
+
+.result-box {
+    margin-top: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.result-box.hidden { display: none; }
+
+.result-success {
+    background: #f1f8e9;
+    border: 1px solid #c5e1a5;
+    border-left: 4px solid #4CAF50;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+.result-error {
+    background: #fce4ec;
+    border: 1px solid #f48fb1;
+    border-left: 4px solid #e53935;
+    padding: 16px;
+    border-radius: 8px;
+    color: #b71c1c;
+}
+
+.result-pending {
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-left: 4px solid #1976d2;
+    padding: 16px;
+    border-radius: 8px;
+    color: #1565c0;
+}
+
+.result-title {
+    font-weight: 700;
+    margin-bottom: 8px;
+    font-size: 1.05em;
+}
+
+.result-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.result-label {
+    font-size: 0.8em;
+    font-weight: 600;
+    color: #666;
+    min-width: 70px;
+}
+
+.result-hash {
+    font-family: 'Courier New', monospace;
+    font-size: 0.75em;
+    word-break: break-all;
+    flex: 1;
+}
+
+.result-note {
+    margin-top: 10px;
+    font-size: 0.85em;
+    color: #666;
+}
+
+.hash-compare {
+    margin-top: 10px;
+    font-size: 0.82em;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* ── Títulos pendientes (issuer) ─────────────────────────── */
+
+.title-pending-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-left: 4px solid #FFC107;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.title-name    { font-weight: 600; color: #1a1a2e; }
+.title-carrera { color: #555; font-size: 0.9em; flex: 1; }
+.title-mat     { color: #888; font-size: 0.85em; }
+
+.badge-pending {
+    background: #fff3e0;
+    color: #e65100;
+    border: 1px solid #ffcc80;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* ── Títulos confirmados (issuer) ────────────────────────── */
+
+.title-confirmed-item {
+    padding: 14px;
+    background: #f8fff8;
+    border: 1px solid #c8e6c9;
+    border-left: 4px solid #4CAF50;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+.title-confirmed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.title-confirmed-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 0.85em;
+    color: #666;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.title-hash-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.title-hash-row code {
+    font-size: 0.75em;
+    color: #888;
+    flex: 1;
+}
+
+.badge-confirmed {
+    background: #e8f5e9;
+    color: #2e7d32;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: 600;
+}
+
+/* ── Credencial del egresado ─────────────────────────────── */
+
+.credential-card {
+    border: 2px solid #667eea;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+}
+
+.cred-verified-badge {
+    display: inline-block;
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #c8e6c9;
+    padding: 3px 12px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.cred-title-name {
+    font-size: 1.2em;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 4px;
+}
+
+.cred-holder {
+    font-size: 1em;
+    color: #444;
+    margin-bottom: 10px;
+}
+
+.cred-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 0.85em;
+    color: #666;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.cred-chain-info {
+    font-size: 0.8em;
+    color: #888;
+    margin-bottom: 10px;
+}
+
+.cred-hash-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    border: 1px solid #e0e4ff;
+    border-radius: 6px;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+}
+
+.cred-hash-label {
+    font-size: 0.78em;
+    font-weight: 600;
+    color: #888;
+    white-space: nowrap;
+}
+
+.cred-hash {
+    font-family: 'Courier New', monospace;
+    font-size: 0.72em;
+    color: #555;
+    word-break: break-all;
+    flex: 1;
+}
+
+/* ── Título verificado (empleador) ───────────────────────── */
+
+.verified-title-card {
+    border: 2px solid #4CAF50;
+    border-radius: 12px;
+    padding: 20px;
+    background: #f1f8e9;
+    margin-top: 12px;
+}
+
+.verified-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.verified-badge {
+    background: #4CAF50;
+    color: white;
+    padding: 4px 14px;
+    border-radius: 14px;
+    font-size: 0.85em;
+    font-weight: 700;
+}
+
+.verified-block {
+    color: #666;
+    font-size: 0.85em;
+}
+
+.verified-grid {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 6px 12px;
+    margin-bottom: 14px;
+    font-size: 0.9em;
+}
+
+.vg-label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.88em;
+}
+
+.verified-sigs {
+    font-size: 0.85em;
+    color: #2e7d32;
+    margin-bottom: 10px;
+}
+
+.verified-hash {
+    font-size: 0.8em;
+    color: #666;
+}
+
+.verified-hash code {
+    font-size: 0.9em;
+    word-break: break-all;
+    color: #444;
+}
+
+/* ── Botones pequeños de copiar ──────────────────────────── */
+
+.btn-copy-sm {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.75em;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.btn-copy-sm:hover { background: #764ba2; }
+
+/* ── Badge tipo en mempool ───────────────────────────────── */
+
+.tx-tipo-badge {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #c8e6c9;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 0.72em;
+    font-weight: 600;
+    margin-left: 6px;
+}
+
+/* ── Info de firmas en bloque ────────────────────────────── */
+
+.block-sigs {
+    font-size: 0.78em;
+    color: #888;
+    white-space: nowrap;
+}
