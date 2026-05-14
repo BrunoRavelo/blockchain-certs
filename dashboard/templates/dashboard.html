@@ -3,132 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ node_id }} — Blockchain Certs</title>
+    <title>{{ display_name }} — Blockchain Certs</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <div class="container">
 
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- HEADER                                             -->
-    <!-- ═══════════════════════════════════════════════════ -->
+    <!-- HEADER -->
     <div class="header">
-        <h1>{{ node_id }}</h1>
+        <h1>{{ display_name }}</h1>
         <div class="ports">
             <span class="port-badge" id="chain-badge">Altura: -</span>
             <span class="port-badge role-badge">
-                {% if node_role == 'issuer' %}📋 Secretaría (Emisor)
-                {% elif node_role == 'validator' %}✅ Validador
+                {% if node_role == 'issuer' %}📋 Institución Emisora
+                {% elif node_role == 'observer' %}🔍 Verificador (Solo Lectura)
                 {% elif node_role == 'graduate' %}🎓 Egresado
-                {% else %}👁 Nodo Completo{% endif %}
+                {% else %}👁 Nodo{% endif %}
             </span>
+            {% if node_role in ['issuer', 'observer'] %}
             <span class="port-badge institution-badge">{{ institucion }}</span>
+            {% endif %}
         </div>
     </div>
 
-    <!-- Notificación general -->
     <div id="block-notification" class="notification hidden"></div>
 
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- SECCIÓN: WALLET                                    -->
-    <!-- ═══════════════════════════════════════════════════ -->
+    <!-- ═══ WALLET ═══════════════════════════════════════════ -->
     <div class="card">
-        <h2>Wallet</h2>
+        <h2>Identidad en la red</h2>
         <div class="info-grid">
             <div class="info-item">
-                <span class="label">Address:</span>
-                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <span class="label">Address (wallet):</span>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                     <span class="value monospace" id="wallet-address">-</span>
-                    <button type="button" class="btn-copy" onclick="copyAddress()">Copiar</button>
+                    <button class="btn-copy" onclick="copyAddress()">Copiar</button>
                 </div>
-            </div>
-            <div class="info-item">
-                <span class="label">Balance confirmado:</span>
-                <span class="value balance" id="wallet-balance">-</span>
-                <span class="unit">coins</span>
             </div>
             <div class="info-item">
                 <span class="label">Rol en la red:</span>
                 <span class="value" id="node-role-label">-</span>
             </div>
+            {% if node_role == 'graduate' %}
+            <div class="info-item">
+                <span class="label">Credenciales registradas:</span>
+                <span class="value balance" id="credential-count">-</span>
+                <span class="unit">certificado(s)</span>
+            </div>
+            {% endif %}
+            {% if node_role in ['issuer', 'observer'] %}
+            <div class="info-item">
+                <span class="label">Institución:</span>
+                <span class="value" id="institucion-label">-</span>
+            </div>
+            {% endif %}
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- SECCIÓN: EMITIR TÍTULO (solo issuer)               -->
-    <!-- ═══════════════════════════════════════════════════ -->
+    <!-- ═══ EMITIR CERTIFICADO (solo issuer) ═════════════════ -->
     {% if node_role == 'issuer' %}
     <div class="card">
-        <h2>📋 Emitir Título Universitario</h2>
-        <div class="form-group">
-            <label>Nombre completo del egresado</label>
-            <input type="text" id="t-nombre" placeholder="Ej. Bruno Rosas Hernández">
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <h2>📋 Emitir Certificado Total de Estudios</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group" style="grid-column:1/-1;">
+                <label>Nombre completo del egresado</label>
+                <input type="text" id="t-nombre" placeholder="Ej. Bruno Rosas Hernández">
+            </div>
             <div class="form-group">
                 <label>Matrícula</label>
                 <input type="text" id="t-matricula" placeholder="Ej. 2021045">
             </div>
             <div class="form-group">
-                <label>Fecha de titulación</label>
+                <label>Fecha de egreso</label>
                 <input type="date" id="t-fecha">
             </div>
-        </div>
-        <div class="form-group">
-            <label>Carrera / Programa académico</label>
-            <input type="text" id="t-carrera" placeholder="Ej. Ingeniería en Sistemas Computacionales">
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-            <div class="form-group">
-                <label>Clave RVOE</label>
-                <input type="text" id="t-rvoe" placeholder="Ej. UAAN-2024-001">
+            <div class="form-group" style="grid-column:1/-1;">
+                <label>Licenciatura</label>
+                <select id="t-carrera">
+                    {% for carrera in carreras %}
+                    <option value="{{ carrera }}">{{ carrera }}</option>
+                    {% endfor %}
+                </select>
             </div>
-            <div class="form-group">
+            <div class="form-group" style="grid-column:1/-1;">
                 <label>Wallet del egresado</label>
-                <div style="display:flex; gap:8px;">
+                <div style="display:flex;gap:6px;">
                     <input type="text" id="t-wallet" placeholder="1Address...">
-                    <select id="t-address-select" onchange="fillEgresadoAddress(this.value)" style="min-width:130px;">
-                        <option value="">— conocidos —</option>
+                    <select id="t-address-select" onchange="fillEgresadoAddress(this.value)" style="min-width:140px;">
+                        <option value="">— egresados conocidos —</option>
                     </select>
                 </div>
             </div>
         </div>
-        <div class="form-group">
-            <label>Archivo PDF del título <span class="hint-inline">(opcional para el demo)</span></label>
-            <input type="file" id="t-pdf" accept=".pdf">
-        </div>
         <button class="btn-primary" onclick="issueTitle()">
-            📄 Emitir y registrar en blockchain
+            📄 Registrar en blockchain
         </button>
         <div id="issue-result" class="result-box hidden"></div>
     </div>
 
-    <!-- Títulos pendientes de confirmación -->
+    <!-- Pendientes + Sellar bloque -->
     <div class="card">
         <h2>⏳ Pendientes de confirmación</h2>
-        <div id="pending-list">
-            <div class="empty">Sin títulos pendientes</div>
+        <div id="pending-list"><div class="empty">Sin certificados pendientes</div></div>
+        <div style="margin-top:16px;border-top:1px solid #eee;padding-top:16px;">
+            <p class="hint" style="margin-bottom:10px;">
+                Los certificados en el mempool no están confirmados.
+                Sella el bloque para registrarlos permanentemente en la cadena.
+            </p>
+            <button class="btn-primary" id="btn-seal" onclick="sealBlock()" style="background:linear-gradient(135deg,#2e7d32,#4CAF50);">
+                🔒 Sellar bloque
+            </button>
+            <div id="seal-result" style="margin-top:10px;"></div>
         </div>
     </div>
 
-    <!-- Todos los títulos emitidos -->
+    <!-- Todos los títulos emitidos por esta institución -->
     <div class="card">
-        <h2>📚 Títulos emitidos (confirmados)</h2>
-        <div id="all-titles-list">
-            <div class="empty">Sin títulos registrados aún</div>
-        </div>
+        <h2>📚 Certificados emitidos</h2>
+        <div id="all-titles-list"><div class="empty">Sin certificados aún</div></div>
     </div>
     {% endif %}
 
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- SECCIÓN: MIS CREDENCIALES (solo graduate)          -->
-    <!-- ═══════════════════════════════════════════════════ -->
+    <!-- ═══ MIS CREDENCIALES (solo graduate) ═════════════════ -->
     {% if node_role == 'graduate' %}
     <div class="card">
         <h2>🎓 Mis Credenciales</h2>
         <p class="hint" style="margin-bottom:16px;">
-            Títulos universitarios registrados en blockchain a tu nombre.
-            Comparte el TX Hash con empleadores para que verifiquen tu título.
+            Certificados universitarios registrados en blockchain a tu nombre.
+            Comparte el TX Hash con empleadores o instituciones para verificación instantánea.
         </p>
         <div id="mis-credenciales">
             <div class="empty">Cargando credenciales...</div>
@@ -136,93 +137,47 @@
     </div>
     {% endif %}
 
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- SECCIÓN: VERIFICAR TÍTULO (visible para todos)     -->
-    <!-- ═══════════════════════════════════════════════════ -->
+    <!-- ═══ PANEL OBSERVER ═══════════════════════════════════ -->
+    {% if node_role == 'observer' %}
     <div class="card">
-        <h2>🔎 Verificar Título</h2>
+        <h2>🔍 Panel de Verificación</h2>
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="label">Función:</span>
+                <span class="value">Observador de la red — puede verificar cualquier certificado</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Producción de bloques:</span>
+                <span class="value" style="color:#888;">No — este nodo no tiene autoridad de emisión</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Caso de uso típico:</span>
+                <span class="value">Empresa empleadora, organismo acreditador, institución receptora</span>
+            </div>
+        </div>
+        <div style="margin-top:12px;padding:12px;background:#f1f8e9;border-radius:8px;font-size:0.9em;color:#2e7d32;">
+            💡 Usa el panel <strong>"Verificar Certificado"</strong> debajo para confirmar
+            la autenticidad de cualquier título universitario con su TX Hash.
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ═══ VERIFICAR TÍTULO (todos) ═════════════════════════ -->
+    <div class="card">
+        <h2>🔎 Verificar Certificado</h2>
         <p class="hint" style="margin-bottom:16px;">
-            Ingresa el TX Hash del título. Opcionalmente sube el PDF para
-            confirmar que el documento no fue alterado.
+            Ingresa el TX Hash del certificado para consultar sus datos en la cadena.
         </p>
         <div class="form-group">
-            <label>TX Hash del título</label>
-            <div style="display:flex; gap:8px;">
-                <input type="text" id="v-txhash" placeholder="Hash de 64 caracteres...">
+            <div style="display:flex;gap:8px;">
+                <input type="text" id="v-txhash" placeholder="TX Hash (64 caracteres)...">
                 <button class="btn-secondary" onclick="lookupTitle()">Buscar</button>
             </div>
         </div>
         <div id="title-lookup-result"></div>
-
-        <div id="doc-verify-section" class="hidden" style="margin-top:20px; border-top:1px solid #eee; padding-top:16px;">
-            <div class="form-group">
-                <label>Verificar documento PDF</label>
-                <p class="hint">Sube el PDF que el egresado te proporcionó para confirmar autenticidad.</p>
-                <input type="file" id="v-pdf" accept=".pdf" onchange="verifyDocument()">
-            </div>
-            <div id="doc-verify-result"></div>
-        </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- SECCIÓN: ENVIAR TX (todos excepto graduate)        -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    {% if node_role != 'graduate' %}
-    <div class="card">
-        <h2>Enviar Transacción</h2>
-        <form method="POST" action="/send_tx" id="tx-form">
-            <div class="form-group">
-                <label for="to_address">Destinatario:</label>
-                <div style="display:flex; gap:8px;">
-                    <input type="text" name="to_address" id="to_address" placeholder="1A2B3C...">
-                    <select id="address-select" onchange="fillAddress(this.value)" style="min-width:140px;">
-                        <option value="">— conocidos —</option>
-                    </select>
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="amount">Cantidad (coins):</label>
-                <input type="number" name="amount" id="amount" min="0.01" step="0.01" value="1">
-            </div>
-            <div style="display:flex; gap:10px;">
-                <button type="button" onclick="previewTx()" class="btn-secondary">🔍 Vista previa</button>
-                <button type="submit" class="btn-primary" style="flex:1;">Enviar</button>
-            </div>
-        </form>
-    </div>
-    {% endif %}
-
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- SECCIÓN: ESTADO DEL VALIDADOR                      -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    {% if node_role in ['issuer', 'validator'] %}
-    <div class="card">
-        <h2>⚙ Estado del Validador PoA</h2>
-        <div class="info-grid">
-            <div class="info-item">
-                <span class="label">Estado:</span>
-                <span class="value" id="validator-status-label">-</span>
-            </div>
-            <div class="info-item">
-                <span class="label">Bloques producidos:</span>
-                <span class="value" id="blocks-mined">-</span>
-            </div>
-            <div class="info-item">
-                <span class="label">Quórum requerido:</span>
-                <span class="value" id="quorum-display">1 firma(s)</span>
-            </div>
-        </div>
-        <div style="margin-top:16px;">
-            <button class="btn-secondary" onclick="mineOnce()">
-                ⚡ Producir bloque ahora
-            </button>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- SECCIÓN: BLOCKCHAIN                                -->
-    <!-- ═══════════════════════════════════════════════════ -->
+    <!-- ═══ BLOCKCHAIN (todos) ═══════════════════════════════ -->
     <div class="card">
         <h2>Blockchain</h2>
         <div class="info-grid" style="margin-bottom:15px;">
@@ -239,9 +194,7 @@
         <div id="blocks-list" class="blocks-list"></div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- SECCIÓN: RED P2P                                   -->
-    <!-- ═══════════════════════════════════════════════════ -->
+    <!-- ═══ RED P2P (todos) ══════════════════════════════════ -->
     <div class="card">
         <h2>Red P2P</h2>
         <div class="info-item" style="margin-bottom:10px;">
@@ -251,77 +204,20 @@
         <ul id="peers-list" class="peer-list"></ul>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════ -->
-    <!-- SECCIÓN: MEMPOOL                                   -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div class="card">
-        <h2>Mempool</h2>
-        <div class="info-item" style="margin-bottom:10px;">
-            <span class="label">TXs pendientes:</span>
-            <span class="value" id="mempool-count">-</span>
-        </div>
-        <div id="mempool-list" class="tx-list"></div>
-    </div>
-
 </div>
 
 <!-- Variables para JS -->
 <script>
-    const NODE_ROLE      = '{{ node_role }}';
-    const DASHBOARD_MODE = '{{ dashboard_mode }}';
-    const QUORUM         = 1
+    const NODE_ROLE = '{{ node_role }}';
+    const QUORUM    = {{ quorum }};
 </script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 
-<!-- ═══════════════════════════════════════════════════ -->
-<!-- MODAL: Vista previa de TX                          -->
-<!-- ═══════════════════════════════════════════════════ -->
-<div id="tx-preview-modal" class="modal-overlay hidden">
-    <div class="modal-box">
-        <div class="modal-header">
-            <h3>🔍 Vista Previa de Transacción</h3>
-            <button onclick="closeTxPreview()" class="btn-close-modal">✕</button>
-        </div>
-        <div class="modal-body">
-            <div class="verify-item">
-                <span class="verify-label">De:</span>
-                <span class="verify-value monospace small" id="prev-from">-</span>
-            </div>
-            <div class="verify-item">
-                <span class="verify-label">Para:</span>
-                <span class="verify-value monospace small" id="prev-to">-</span>
-            </div>
-            <div class="verify-item">
-                <span class="verify-label">Cantidad:</span>
-                <span class="verify-value" id="prev-amount">-</span>
-            </div>
-            <div class="verify-item">
-                <span class="verify-label">Hash TX:</span>
-                <span class="verify-value monospace small" id="prev-txid">-</span>
-            </div>
-            <div class="verify-item">
-                <span class="verify-label">Firma Ed25519:</span>
-                <span class="verify-value monospace small" id="prev-sig">-</span>
-            </div>
-            <div class="verify-item">
-                <span class="verify-label">Válida:</span>
-                <span class="verify-value" id="prev-valid">-</span>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button onclick="closeTxPreview()" class="btn-mode">Cancelar</button>
-            <button onclick="confirmTx()" class="btn-primary" style="flex:1;">✅ Confirmar y Enviar</button>
-        </div>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════ -->
-<!-- MODAL: Verificación de bloque                      -->
-<!-- ═══════════════════════════════════════════════════ -->
+<!-- MODAL: Verificación de bloque -->
 <div id="verify-modal" class="modal-overlay hidden">
     <div class="modal-box">
         <div class="modal-header">
-            <h3>🔎 Verificación de Bloque <span id="verify-block-height"></span></h3>
+            <h3>🔎 Bloque <span id="verify-block-height"></span></h3>
             <button onclick="closeVerifyModal()" class="btn-close-modal">✕</button>
         </div>
         <div class="modal-body" id="verify-results">

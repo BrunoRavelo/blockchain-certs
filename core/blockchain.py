@@ -27,20 +27,11 @@ import time
 import threading
 from typing import List, Optional
 
+import config
 from core.block import Block, BlockHeader
 from core.transaction import Transaction
 from core.merkle import MerkleTree
 from core.wallet import Wallet
-from config import (
-    BLOCK_REWARD,
-    MAX_MEMPOOL_SIZE,
-    MAX_TXS_PER_BLOCK,
-    AUTHORIZED_VALIDATORS,
-    VALIDATOR_PUBKEYS,
-    QUORUM_REQUIRED,
-    AUTHORIZED_ISSUERS,
-    TITULO_MODE,
-)
 
 
 class Blockchain:
@@ -57,11 +48,8 @@ class Blockchain:
         self.mempool: List[Transaction] = []
         self._lock = threading.Lock()
 
-        self.MAX_MEMPOOL_SIZE  = MAX_MEMPOOL_SIZE
-        self.MAX_TXS_PER_BLOCK = MAX_TXS_PER_BLOCK
-
-        # Para compatibilidad con app.py (dashboard lee este campo)
-        self._last_adjustment = None
+        self.MAX_MEMPOOL_SIZE  = config.MAX_MEMPOOL_SIZE
+        self.MAX_TXS_PER_BLOCK = config.MAX_TXS_PER_BLOCK
 
         self._create_genesis_block()
 
@@ -117,14 +105,6 @@ class Blockchain:
     def has_sufficient_balance(self, address: str, amount: float) -> bool:
         return self.get_balance(address) >= amount
 
-    # Compatibilidad con app.py (dashboard llama a estos métodos)
-    def get_target_hex(self) -> str:
-        return "PoA"
-
-    def get_estimated_block_time(self) -> str:
-        from config import BLOCK_TIME
-        return f"~{BLOCK_TIME}s"
-
     # ──────────────────────────────────────────────────────────
     # Mempool
     # ──────────────────────────────────────────────────────────
@@ -144,17 +124,18 @@ class Blockchain:
                 print("[MEMPOOL] Rechazada: duplicada")
                 return False
 
-            # Verificar balance solo para TXs con amount > 0
-            if tx.from_address != "COINBASE" and tx.amount > 0:
+            is_titulo = tx.data.get("tipo") == "titulo_universitario"
+
+            # TXs de título no tienen economía — no verificar balance
+            if not is_titulo and tx.from_address != "COINBASE" and tx.amount > 0:
                 if not self.has_sufficient_balance(tx.from_address, tx.amount):
                     print("[MEMPOOL] Rechazada: fondos insuficientes")
                     return False
 
-            # Si TITULO_MODE, verificar que TXs de título vienen de issuers autorizados
-            if TITULO_MODE and tx.data.get("tipo") == "titulo_universitario":
-                if tx.from_address not in AUTHORIZED_ISSUERS:
-                    print(f"[MEMPOOL] Rechazada: {tx.from_address[:12]}... no es issuer autorizado")
-                    return False
+            # Solo issuers autorizados pueden emitir títulos
+            if is_titulo and tx.from_address not in config.AUTHORIZED_ISSUERS:
+                print(f"[MEMPOOL] Rechazada: {tx.from_address[:12]}... no es issuer autorizado")
+                return False
 
             self.mempool.append(tx)
             tipo = f" [{tx.data.get('tipo')}]" if tx.data else ""
@@ -200,7 +181,7 @@ class Blockchain:
             El bloque confirmado, o None si el mempool está vacío
             o este nodo no es un validador autorizado.
         """
-        if validator_wallet.address not in AUTHORIZED_VALIDATORS:
+        if validator_wallet.address not in config.AUTHORIZED_VALIDATORS:
             print(f"[POA] {validator_wallet.address[:12]}... no es validador autorizado")
             return None
 
@@ -273,9 +254,9 @@ class Blockchain:
         valid_sigs  = 0
 
         for addr, sig_hex in block.header.signatures.items():
-            if addr not in AUTHORIZED_VALIDATORS:
+            if addr not in config.AUTHORIZED_VALIDATORS:
                 continue
-            pubkey_hex = VALIDATOR_PUBKEYS.get(addr)
+            pubkey_hex = config.VALIDATOR_PUBKEYS.get(addr)
             if not pubkey_hex:
                 continue
             try:
@@ -285,7 +266,7 @@ class Blockchain:
             except Exception:
                 continue
 
-        if valid_sigs < QUORUM_REQUIRED:
+        if valid_sigs < config.QUORUM_REQUIRED:
             print(
                 f"[VALIDATION] Quórum insuficiente: "
                 f"{valid_sigs}/{QUORUM_REQUIRED} firmas válidas"
@@ -293,10 +274,10 @@ class Blockchain:
             return False
 
         # 5. TXs de título solo de issuers autorizados
-        if TITULO_MODE:
+        if config.TITULO_MODE:
             for tx in block.transactions:
                 if tx.data.get("tipo") == "titulo_universitario":
-                    if tx.from_address not in AUTHORIZED_ISSUERS:
+                    if tx.from_address not in config.AUTHORIZED_ISSUERS:
                         print(f"[VALIDATION] TX de título de issuer no autorizado")
                         return False
 

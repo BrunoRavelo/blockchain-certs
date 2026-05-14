@@ -456,3 +456,212 @@ tbody td { padding: 11px 14px; vertical-align: middle; }
     .block-detail-meta    { grid-template-columns: 1fr; }
     .chain-block          { min-width: 140px; max-width: 140px; }
 }
+
+
+/* ══════════════════════════════════════════════════════════
+   AGREGAR AL FINAL DE global.css
+   Clases nuevas para PoA y verificación de títulos
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Header mejorado ─────────────────────────────────────── */
+
+.header-sub {
+    font-size: 0.82em;
+    color: #888;
+    margin-top: 4px;
+}
+
+/* ── Card destacada (verificador de títulos) ─────────────── */
+
+.card-highlight {
+    border-left: 4px solid #4CAF50;
+}
+
+.card-highlight h2 {
+    border-bottom-color: #4CAF50;
+}
+
+.section-desc {
+    color: #666;
+    font-size: 0.9em;
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+/* ── Input de verificación ───────────────────────────────── */
+
+.verify-input-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.verify-input-row input {
+    flex: 1;
+    min-width: 280px;
+    padding: 10px 14px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+}
+
+.verify-input-row input:focus {
+    outline: none;
+    border-color: #4CAF50;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #4CAF50, #388E3C);
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+}
+.btn-primary:hover { opacity: 0.9; }
+
+/* ── Resultados del verificador ──────────────────────────── */
+
+.g-result-pending {
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-left: 4px solid #1976d2;
+    padding: 14px 16px;
+    border-radius: 8px;
+    color: #1565c0;
+}
+
+.g-result-error {
+    background: #fce4ec;
+    border: 1px solid #f48fb1;
+    border-left: 4px solid #e53935;
+    padding: 14px 16px;
+    border-radius: 8px;
+    color: #b71c1c;
+}
+
+.g-result-success {
+    background: #f1f8e9;
+    border: 1px solid #c5e1a5;
+    border-left: 4px solid #4CAF50;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+.g-result-title {
+    font-weight: 700;
+    margin-bottom: 8px;
+    font-size: 1.05em;
+}
+
+.g-hash-row {
+    margin-top: 8px;
+    font-size: 0.82em;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.g-hash-row code {
+    font-family: 'Courier New', monospace;
+    word-break: break-all;
+    color: #444;
+}
+
+/* ── Tarjeta de título verificado ────────────────────────── */
+
+.g-verified-card {
+    border: 2px solid #4CAF50;
+    border-radius: 12px;
+    padding: 20px;
+    background: #f1f8e9;
+    margin-top: 8px;
+}
+
+.g-verified-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.g-verified-badge {
+    background: #4CAF50;
+    color: white;
+    padding: 4px 16px;
+    border-radius: 14px;
+    font-size: 0.9em;
+    font-weight: 700;
+}
+
+.g-verified-block {
+    color: #666;
+    font-size: 0.85em;
+}
+
+.g-verified-grid {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 6px 12px;
+    margin-bottom: 14px;
+    font-size: 0.9em;
+}
+
+.g-vg-label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.88em;
+}
+
+.g-verified-sigs {
+    font-size: 0.85em;
+    color: #2e7d32;
+    margin-bottom: 10px;
+}
+
+.g-verified-hash {
+    font-size: 0.8em;
+    color: #555;
+}
+
+.g-verified-hash code {
+    font-family: 'Courier New', monospace;
+    word-break: break-all;
+    font-size: 0.9em;
+}
+
+/* ── Cadena visual — actualizado para PoA ────────────────── */
+
+.cb-sigs {
+    color: #2e7d32;
+    font-weight: 600;
+    font-size: 0.75em;
+}
+
+/* ── TX de título en el detalle de bloque ────────────────── */
+
+.tx-titulo {
+    border-color: #c8e6c9;
+}
+
+.tx-titulo .tx-detail-header {
+    background: #f1f8e9;
+}
+
+.badge-titulo {
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-size: 0.8em;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+}

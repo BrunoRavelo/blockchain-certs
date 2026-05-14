@@ -1,23 +1,23 @@
-// Dashboard Global — lógica completa Sprint 9.1
-// Cadena visual + detalle de bloques clickeables
+// global.js — Explorador Público Blockchain Certs
+// Sprint 3B: PoA + verificación de títulos
 
-let lastMaxHeight = 0;
-let chainRefreshInterval = null;
+let lastMaxHeight  = 0;
+let currentTxHash  = null;
+
+// ──────────────────────────────────────────────────────────
+// Loop principal
+// ──────────────────────────────────────────────────────────
 
 async function updateAll() {
     try {
-        const [network, orch] = await Promise.all([
-            fetch('/api/network').then(r => r.json()),
-            fetch('/api/orchestrator').then(r => r.json()),
-        ]);
+        const network = await fetch('/api/network').then(r => r.json());
         updateSeedBadge(network.seed_online);
         updateSummary(network.summary);
         updateNodesTable(network.nodes, network.summary.max_height);
-        updateOrchestrator(orch);
         updateRefreshBadge();
     } catch (err) {
         console.error('Error actualizando red:', err);
-        document.getElementById('refresh-badge').textContent = '⚠ Error de conexión';
+        document.getElementById('refresh-badge').textContent = '⚠ Error';
     }
 }
 
@@ -35,17 +35,20 @@ async function updateChain() {
     }
 }
 
+// ──────────────────────────────────────────────────────────
+// Resumen de la red
+// ──────────────────────────────────────────────────────────
+
 function updateSeedBadge(online) {
     const el = document.getElementById('seed-badge');
     if (!el) return;
-    el.textContent = online ? '🟢 Seed online' : '🔴 Seed offline';
-    el.style.background = online ? '#e8f5e9' : '#fce4ec';
+    el.textContent       = online ? '🟢 Seed online' : '🔴 Seed offline';
+    el.style.background  = online ? '#e8f5e9' : '#fce4ec';
 }
 
 function updateRefreshBadge() {
     const el = document.getElementById('refresh-badge');
-    if (!el) return;
-    el.textContent = `Actualizado: ${new Date().toLocaleTimeString()}`;
+    if (el) el.textContent = `Actualizado: ${new Date().toLocaleTimeString()}`;
 }
 
 function updateSummary(s) {
@@ -55,61 +58,52 @@ function updateSummary(s) {
     setText('s-height',      s.max_height);
     setText('s-out-sync',    s.out_of_sync);
     setText('s-mempool',     s.total_mempool);
-    setText('s-mined',       s.total_mined);
-    setText('s-mining-auto', s.mining_auto);
-
-    // Mining control section
-    setText('mining-auto-count', `${s.mining_auto} / ${s.online_nodes}`);
-    const statusEl = document.getElementById('mining-global-status');
-    if (statusEl) {
-        if (s.mining_auto === s.online_nodes && s.online_nodes > 0) {
-            statusEl.textContent = '⚙ Todos en AUTO';
-            statusEl.style.color = '#2e7d32';
-        } else if (s.mining_auto === 0) {
-            statusEl.textContent = '🖐 Todos en MANUAL';
-            statusEl.style.color = '#1565c0';
-        } else {
-            statusEl.textContent = '⚡ Mixto';
-            statusEl.style.color = '#e65100';
-        }
-    }
+    setText('s-validators',  s.issuers_active);
 
     if (lastMaxHeight > 0 && s.max_height > lastMaxHeight) {
-        showNotification(`¡Nuevo bloque #${s.max_height - 1} confirmado en la red!`);
+        showNotification(`✅ Nuevo bloque #${s.max_height - 1} confirmado en la red`);
         updateChain();
     }
     lastMaxHeight = s.max_height;
-
-    const outCard = document.getElementById('s-out-sync')?.closest('.summary-card');
-    if (outCard) outCard.style.background = s.out_of_sync > 0 ? '#fff3e0' : '';
 }
+
+// ──────────────────────────────────────────────────────────
+// Cadena visual
+// ──────────────────────────────────────────────────────────
 
 function renderChainVisual(blocks, totalHeight) {
     const container = document.getElementById('chain-visual');
     if (!container) return;
+
     const ordered = [...blocks].reverse();
+
     const items = ordered.map((b, i) => {
         const isLatest  = i === ordered.length - 1;
         const isGenesis = b.height === 0;
         const txLabel   = b.txs === 1 ? '1 TX' : `${b.txs} TXs`;
-        const minerShort = b.mined_by ? b.mined_by.slice(0, 8) + '...' : 'génesis';
+        const sigsLabel = `🔑 ${b.firmas || 0} firma(s)`;
+
         return `
             ${i > 0 ? '<div class="chain-arrow">→</div>' : ''}
             <div class="chain-block ${isLatest ? 'chain-block-latest' : ''} ${isGenesis ? 'chain-block-genesis' : ''}"
-                 onclick="showBlockDetail('${b.full_hash}')" title="Click para ver detalle">
+                 onclick="showBlockDetail('${b.full_hash}')"
+                 title="Click para ver detalle">
                 <div class="cb-height">#${b.height}</div>
                 <div class="cb-hash monospace">${b.hash}</div>
                 <div class="cb-meta">
                     <span class="cb-txs">${txLabel}</span>
-                    <span class="cb-miner">⛏ ${minerShort}</span>
+                    <span class="cb-sigs">${sigsLabel}</span>
                 </div>
                 <div class="cb-time">${formatTime(b.timestamp)}</div>
             </div>`;
     }).join('');
+
     const hiddenCount = totalHeight - blocks.length;
     const prefix = hiddenCount > 0
-        ? `<div class="chain-ellipsis">... ${hiddenCount} bloques anteriores</div><div class="chain-arrow">→</div>`
+        ? `<div class="chain-ellipsis">... ${hiddenCount} bloques anteriores</div>
+           <div class="chain-arrow">→</div>`
         : '';
+
     container.innerHTML = prefix + items;
     container.scrollLeft = container.scrollWidth;
 }
@@ -120,65 +114,92 @@ function updateLatestBlockInfo(block) {
     panel.style.display = 'block';
     setText('lb-height', `#${block.height}`);
     setText('lb-hash',   block.full_hash || block.hash);
-    setText('lb-nonce',  (block.nonce || 0).toLocaleString());
+    setText('lb-sigs',   `${block.firmas || 0} validador(es)`);
     setText('lb-txs',    block.txs);
-    setText('lb-miner',  block.mined_by || '-');
     setText('lb-time',   formatTime(block.timestamp));
 }
+
+// ──────────────────────────────────────────────────────────
+// Detalle de bloque
+// ──────────────────────────────────────────────────────────
 
 async function showBlockDetail(fullHash) {
     const panel = document.getElementById('block-detail-panel');
     if (!panel) return;
     panel.classList.remove('hidden');
-    document.getElementById('bd-tx-list').innerHTML = '<div class="empty">Cargando...</div>';
+    document.getElementById('bd-tx-list').innerHTML =
+        '<div class="empty">Cargando...</div>';
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
     try {
         const block = await fetch(`/api/block/${fullHash}`).then(r => r.json());
         if (block.error) {
-            document.getElementById('bd-tx-list').innerHTML = `<div class="empty">Error: ${block.error}</div>`;
+            document.getElementById('bd-tx-list').innerHTML =
+                `<div class="empty">Error: ${block.error}</div>`;
             return;
         }
+
         const heightEl = document.getElementById('bd-height');
         if (heightEl) heightEl.textContent = `#${block.height ?? ''}`;
-        setText('bd-hash',       block.hash);
-        setText('bd-prev-hash',  block.prev_hash);
-        setText('bd-merkle',     block.merkle_root);
-        setText('bd-nonce',      (block.nonce || 0).toLocaleString());
-        setText('bd-target',     block.target || block.difficulty || '-');
-        setText('bd-timestamp',  block.timestamp ? new Date(block.timestamp * 1000).toLocaleString() : '-');
+
+        setText('bd-hash',      block.hash);
+        setText('bd-prev-hash', block.prev_hash);
+        setText('bd-merkle',    block.merkle_root);
+        setText('bd-sigs',      block.firmas
+            ? `${block.firmas.length} firma(s): ${block.firmas.map(a => a.slice(0,12)+'...').join(', ')}`
+            : '—');
+        setText('bd-target',    block.target || '—');
+        setText('bd-timestamp', block.timestamp
+            ? new Date(block.timestamp * 1000).toLocaleString() : '—');
+
         const countEl = document.getElementById('bd-tx-count');
-        if (countEl) countEl.textContent = `${block.tx_count} TX${block.tx_count !== 1 ? 's' : ''}`;
+        if (countEl) {
+            countEl.textContent =
+                `${block.tx_count} TX${block.tx_count !== 1 ? 's' : ''}`;
+        }
+
         const txList = document.getElementById('bd-tx-list');
         if (!block.txs || block.txs.length === 0) {
             txList.innerHTML = '<div class="empty">Sin transacciones</div>';
             return;
         }
-        txList.innerHTML = block.txs.map(tx => `
-            <div class="tx-detail-item ${tx.type === 'coinbase' ? 'tx-coinbase' : ''}">
-                <div class="tx-detail-header">
-                    <span class="tx-type-badge ${tx.type === 'coinbase' ? 'badge-coinbase' : 'badge-normal'}">
-                        ${tx.type === 'coinbase' ? '⛏ COINBASE' : '↔ TX'}
-                    </span>
-                    <span class="tx-amount-big">${tx.amount} coins</span>
-                </div>
-                <div class="tx-detail-body">
-                    <div class="tx-flow">
-                        <span class="tx-addr-label">De:</span>
-                        <span class="tx-addr monospace">${tx.from}</span>
+
+        txList.innerHTML = block.txs.map(tx => {
+            const isTitulo  = tx.tipo === 'titulo_universitario';
+            const typeLabel = isTitulo
+                ? '🎓 TÍTULO'
+                : tx.type === 'coinbase' ? '⛏ COINBASE' : '↔ TX';
+            const badgeClass = isTitulo
+                ? 'badge-titulo'
+                : tx.type === 'coinbase' ? 'badge-coinbase' : 'badge-normal';
+
+            return `
+                <div class="tx-detail-item ${isTitulo ? 'tx-titulo' : tx.type === 'coinbase' ? 'tx-coinbase' : ''}">
+                    <div class="tx-detail-header">
+                        <span class="tx-type-badge ${badgeClass}">${typeLabel}</span>
+                        <span class="tx-amount-big">${tx.amount} coin(s)</span>
                     </div>
-                    <div class="tx-arrow-big">↓</div>
-                    <div class="tx-flow">
-                        <span class="tx-addr-label">Para:</span>
-                        <span class="tx-addr monospace">${tx.to}</span>
+                    <div class="tx-detail-body">
+                        <div class="tx-flow">
+                            <span class="tx-addr-label">De:</span>
+                            <span class="tx-addr monospace">${tx.from}</span>
+                        </div>
+                        <div class="tx-arrow-big">↓</div>
+                        <div class="tx-flow">
+                            <span class="tx-addr-label">Para:</span>
+                            <span class="tx-addr monospace">${tx.to}</span>
+                        </div>
                     </div>
-                </div>
-                <div class="tx-detail-footer">
-                    <span class="tx-id-label">TXID:</span>
-                    <span class="tx-id monospace">${tx.txid}</span>
-                </div>
-            </div>`).join('');
+                    <div class="tx-detail-footer">
+                        <span class="tx-id-label">TXID:</span>
+                        <span class="tx-id monospace">${tx.txid}</span>
+                    </div>
+                </div>`;
+        }).join('');
+
     } catch (e) {
-        document.getElementById('bd-tx-list').innerHTML = `<div class="empty">Error al cargar: ${e.message}</div>`;
+        document.getElementById('bd-tx-list').innerHTML =
+            `<div class="empty">Error: ${e.message}</div>`;
     }
 }
 
@@ -187,92 +208,180 @@ function closeBlockDetail() {
     if (panel) panel.classList.add('hidden');
 }
 
+// ──────────────────────────────────────────────────────────
+// Tabla de nodos
+// ──────────────────────────────────────────────────────────
+
 function updateNodesTable(nodes, maxHeight) {
     const tbody = document.getElementById('nodes-tbody');
     if (!tbody) return;
 
     if (!nodes || nodes.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty">Sin nodos registrados en el seed</td></tr>';
+        tbody.innerHTML =
+            '<tr><td colspan="9" class="empty">Sin nodos en el seed</td></tr>';
         return;
     }
 
-    // Fork detection: nodos online en max_height con distinto latest_hash
-    const atTop = nodes.filter(n => n.online && n.chain_height === maxHeight);
-    const hashes = new Set(atTop.map(n => n.latest_hash).filter(Boolean));
-    const hasFork = hashes.size > 1;
+    const roleLabels = {
+        'issuer':    '📋 Secretaría',
+        'validator': '✅ Validador',
+        'graduate':  '🎓 Egresado',
+        'full':      '👁 Completo',
+    };
 
     tbody.innerHTML = nodes.map(node => {
-        const online     = node.online;
-        const lag        = maxHeight - node.chain_height;
-        const inSync     = lag <= 2;
-        const miningMode = node.mining_mode || '-';
-        const isFork     = hasFork && online && node.chain_height === maxHeight;
-
+        const online   = node.online;
+        const lag      = maxHeight - node.chain_height;
+        const inSync   = lag <= 2;
         const syncIcon = !online ? '⬛' : inSync ? '✅' : lag <= 5 ? '⚠️' : '🔴';
         const syncText = !online ? '-' : inSync ? 'Sync' : `−${lag}`;
-        const modeLabel = miningMode === 'auto' ? '⚙ Auto' : miningMode === 'manual' ? '🖐 Manual' : '-';
-        const forkBadge = isFork ? ' <span class="fork-badge">⚡ FORK</span>' : '';
-        const rowClass  = !online ? 'row-offline' : isFork ? 'row-fork' : !inSync ? 'row-desynced' : '';
+        const isIssuer = node.is_issuer || false;
+        const rowClass = !online ? 'row-offline' : !inSync ? 'row-desynced' : '';
+        const role        = roleLabels[node.node_role] || node.node_role || '-';
 
         return `
             <tr class="${rowClass}">
-                <td class="node-id">${node.node_id || '-'}${forkBadge}</td>
-                <td>${online ? '<span class="dot green">●</span> Online' : '<span class="dot red">●</span> Offline'}</td>
+                <td class="node-id">${node.node_id || '-'}</td>
+                <td>${online ? role : '-'}</td>
+                <td>${online
+                    ? '<span class="dot green">●</span> Online'
+                    : '<span class="dot red">●</span> Offline'}</td>
                 <td class="monospace">${online ? node.chain_height : '-'}</td>
                 <td>${syncIcon} <span class="${inSync ? 'sync-ok' : 'sync-lag'}">${syncText}</span></td>
-                <td class="balance">${online ? node.balance.toFixed(2) : '-'}</td>
                 <td>${online ? node.peers_count : '-'}</td>
                 <td>${online ? node.mempool_count : '-'}</td>
-                <td>${online ? modeLabel : '-'}</td>
-                <td>${online ? node.blocks_mined : '-'}</td>
-                <td>${online ? `<a href="http://${window.location.hostname}:${node.dashboard_port}" target="_blank" class="link">:${node.dashboard_port}</a>` : '-'}</td>
+                <td>${online ? (isIssuer ? '⚡ Emisor' : '—') : '-'}</td>
+                <td>${online
+                    ? `<a href="http://${window.location.hostname}:${node.dashboard_port}"
+                          target="_blank" class="link">:${node.dashboard_port}</a>`
+                    : '-'}</td>
             </tr>`;
     }).join('');
-
-    if (hasFork) showNotification('⚡ Fork detectado — dos nodos con distinto bloque en la misma altura');
 }
 
-function updateOrchestrator(orch) {
-    if (!orch || !orch.available) return;
-    const mode   = orch.mode || 'manual';
-    const labels = { auto: '⚙ Automático', manual: '🖐 Manual' };
-    const colors = { auto: '#2e7d32', manual: '#1565c0' };
-    const modeEl = document.getElementById('orch-mode');
-    if (modeEl) {
-        modeEl.textContent  = labels[mode] || mode;
-        modeEl.style.color  = colors[mode] || '#333';
-        modeEl.style.fontWeight = '600';
+// ──────────────────────────────────────────────────────────
+// Verificación de títulos
+// ──────────────────────────────────────────────────────────
+
+async function lookupTitle() {
+    const txHash    = document.getElementById('v-txhash').value.trim();
+    const resultDiv = document.getElementById('title-lookup-result');
+
+    if (!txHash) {
+        resultDiv.innerHTML =
+            '<div class="g-result-error">Ingresa un TX hash</div>';
+        return;
     }
-    setText('orch-sent',   orch.txs_sent   || 0);
-    setText('orch-failed', orch.txs_failed || 0);
-    setText('orch-rate',   orch.success_rate != null ? (orch.success_rate * 100).toFixed(1) + '%' : '-');
-    ['auto', 'manual'].forEach(m => {
-        const btn = document.getElementById(`btn-orch-${m}`);
-        if (btn) btn.classList.toggle('active', m === mode);
-    });
-}
 
-async function setOrchMode(mode) {
-    try {
-        await fetch(`/api/orchestrator/${mode}`, { method: 'POST' });
-        await updateAll();
-        showNotification(`TXs automáticas: ${mode === 'auto' ? 'activadas' : 'pausadas'}`);
-    } catch (e) {
-        console.error('Error cambiando modo orquestador:', e);
-    }
-}
+    resultDiv.innerHTML =
+        '<div class="g-result-pending">🔍 Buscando en la cadena...</div>';
+    document.getElementById('doc-verify-section').classList.add('hidden');
 
-async function setAllMining(mode) {
     try {
-        const res  = await fetch(`/api/mining/all/${mode}`, { method: 'POST' });
+        const res  = await fetch(`/api/title/lookup/${txHash}`);
         const data = await res.json();
-        const label = mode === 'auto' ? 'AUTO' : 'MANUAL';
-        showNotification(`Minado ${label} aplicado: ${data.nodes_ok} nodos OK, ${data.nodes_failed} fallidos`);
-        await updateAll();
+
+        if (!data.encontrado) {
+            resultDiv.innerHTML =
+                `<div class="g-result-error">❌ TX no encontrada en la cadena</div>`;
+            return;
+        }
+
+        const d    = data.datos;
+        const sigs = (data.firmas_validadores || []).length;
+
+        resultDiv.innerHTML = `
+            <div class="g-verified-card">
+                <div class="g-verified-header">
+                    <span class="g-verified-badge">✅ TÍTULO VERIFICADO</span>
+                    <span class="g-verified-block">Bloque #${data.bloque}</span>
+                </div>
+                <div class="g-verified-grid">
+                    <span class="g-vg-label">Nombre</span>       <span>${d.nombre}</span>
+                    <span class="g-vg-label">Matrícula</span>    <span>${d.matricula}</span>
+                    <span class="g-vg-label">Carrera</span>      <span>${d.carrera}</span>
+                    <span class="g-vg-label">Institución</span>  <span>${d.institucion}</span>
+                    <span class="g-vg-label">Fecha</span>        <span>${d.fecha}</span>
+                </div>
+                <div class="g-verified-sigs">
+                    🔑 Firmado por ${sigs} validador(es) autorizado(s)
+                </div>
+                <div class="g-verified-hash">
+                    <span class="g-vg-label">Hash del documento registrado:</span>
+                    <code>${d.hash_doc}</code>
+                </div>
+            </div>`;
+
+        currentTxHash = txHash;
+        document.getElementById('doc-verify-section').classList.remove('hidden');
+
     } catch (e) {
-        console.error('Error cambiando modo de minado:', e);
+        resultDiv.innerHTML =
+            `<div class="g-result-error">❌ Error: ${e.message}</div>`;
     }
 }
+
+function clearVerifyResult() {
+    const r = document.getElementById('title-lookup-result');
+    if (r) r.innerHTML = '';
+    const d = document.getElementById('doc-verify-section');
+    if (d) d.classList.add('hidden');
+}
+
+async function verifyDocument() {
+    const file = document.getElementById('v-pdf').files[0];
+    if (!file || !currentTxHash) return;
+
+    const resultDiv = document.getElementById('doc-verify-result');
+    resultDiv.innerHTML =
+        '<div class="g-result-pending">⏳ Calculando hash del documento...</div>';
+
+    const form = new FormData();
+    form.append('tx_hash',     currentTxHash);
+    form.append('archivo_pdf', file);
+
+    try {
+        const res    = await fetch('/api/title/verify_doc',
+                                   { method: 'POST', body: form });
+        const result = await res.json();
+
+        if (result.valido) {
+            resultDiv.innerHTML = `
+                <div class="g-result-success">
+                    <div class="g-result-title">✅ DOCUMENTO AUTÉNTICO</div>
+                    <div>El PDF coincide exactamente con el registrado en blockchain.</div>
+                    <div class="g-hash-row">
+                        <span class="g-vg-label">Hash verificado:</span>
+                        <code>${result.hash_calculado}</code>
+                    </div>
+                </div>`;
+        } else if (result.error) {
+            resultDiv.innerHTML =
+                `<div class="g-result-error">❌ ${result.error}</div>`;
+        } else {
+            resultDiv.innerHTML = `
+                <div class="g-result-error">
+                    <div class="g-result-title">❌ DOCUMENTO NO COINCIDE</div>
+                    <div>El archivo fue modificado o no corresponde a este título.</div>
+                    <div class="g-hash-row">
+                        <span class="g-vg-label">Esperado:</span>
+                        <code>${result.hash_registrado}</code>
+                    </div>
+                    <div class="g-hash-row">
+                        <span class="g-vg-label">Recibido:</span>
+                        <code>${result.hash_calculado}</code>
+                    </div>
+                </div>`;
+        }
+    } catch (e) {
+        resultDiv.innerHTML =
+            `<div class="g-result-error">❌ Error: ${e.message}</div>`;
+    }
+}
+
+// ──────────────────────────────────────────────────────────
+// Utilidades
+// ──────────────────────────────────────────────────────────
 
 function setText(id, value) {
     const el = document.getElementById(id);
@@ -291,6 +400,10 @@ function showNotification(msg) {
     el.classList.remove('hidden');
     setTimeout(() => el.classList.add('hidden'), 4000);
 }
+
+// ──────────────────────────────────────────────────────────
+// Inicialización
+// ──────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
     updateAll();

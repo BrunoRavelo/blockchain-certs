@@ -53,22 +53,8 @@ AUTHORIZED_ISSUERS: list = []
 # Blockchain
 # ──────────────────────────────────────────────────────────
 
-# Sin recompensa de bloque en PoA — los validadores no necesitan incentivo económico.
-BLOCK_REWARD      = 0
 MAX_MEMPOOL_SIZE  = 100
 MAX_TXS_PER_BLOCK = 10
-
-# ──────────────────────────────────────────────────────────
-# Roles de nodo
-# ──────────────────────────────────────────────────────────
-
-# Rol de este nodo. El launcher lo sobreescribe en runtime.
-# Valores: 'issuer' | 'validator' | 'graduate' | 'full'
-#   issuer    → secretaría académica (puede emitir títulos + valida bloques)
-#   validator → organismo acreditador (valida bloques, no emite títulos)
-#   graduate  → egresado (solo envía y recibe TXs, nodo ligero)
-#   full      → nodo completo de solo lectura / auditoría
-NODE_ROLE = os.environ.get('NODE_ROLE', 'full')
 
 # ──────────────────────────────────────────────────────────
 # Demo de títulos universitarios

@@ -1,37 +1,16 @@
 """
-Nodo P2P con consenso Proof of Authority.
+Nodo P2P — Blockchain Certs (PoA)
 
-Sprint 1B: mining_loop → validator_loop
-
-Eliminado:
-- start_mining_loop() (puzzle PoW)
-- mine_once() (PoW manual)
-- _cancel_current_mining()
-- set_mining_mode() para AUTO/MANUAL/PAUSED → VALIDATOR_AUTO / NODE_PAUSED
-- _stop_mining_event (threading.Event para cancelar PoW)
-- mining_progress con hashrate
-
-Conservado sin cambios:
-- Todo el stack P2P: handshake, gossip, ping, cleanup
-- handle_block(), handle_tx(), handle_inv(), handle_getblocks()
-- broadcast_block(), broadcast_transaction()
-- create_transaction()
-- seed_client
-
-Cambios:
-- Modos: VALIDATOR_AUTO, NODE_PAUSED
-- start_validator_loop(): produce bloques PoA cada BLOCK_TIME segundos
-- set_node_mode(): reemplaza set_mining_mode()
-- mining_progress: mantiene la estructura por compatibilidad con app.py,
-  pero solo muestra si el validador está activo
+Producción de bloques: MANUAL, solo issuers, via mine_once().
+Validadores y egresados: solo propagan y verifican bloques entrantes.
+No hay loop automático.
 """
 
 import asyncio
-import threading
-import websockets
 import json
 from typing import Dict, Set, Optional
 from datetime import datetime
+import websockets
 
 from utils.logger import setup_logger
 from network.protocol import (
@@ -46,28 +25,14 @@ from core.transaction import Transaction
 from core.block import Block
 from core.blockchain import Blockchain
 from core.wallet import Wallet
+import config
 from config import (
     MAX_OUTBOUND_CONNECTIONS, MAX_INBOUND_CONNECTIONS, MAX_PEERS_TO_SHARE,
     GOSSIP_INTERVAL, PING_INTERVAL, CLEANUP_INTERVAL, CONNECT_TIMEOUT,
-    SEED_HOST, SEED_PORT, BLOCK_TIME, AUTHORIZED_VALIDATORS, NODE_ROLE,
+    SEED_HOST, SEED_PORT,
 )
 
-# Modos del nodo
-VALIDATOR_AUTO = 'validator_auto'   # Produce bloques PoA automáticamente
-NODE_PAUSED    = 'paused'           # Solo escucha, no produce bloques
-
-# Alias para compatibilidad con app.py (lee mining_mode)
-MINING_AUTO   = VALIDATOR_AUTO
-MINING_MANUAL = NODE_PAUSED
-
-
 class P2PNode:
-    """
-    Nodo P2P con consenso PoA.
-
-    Los nodos validadores producen bloques firmados cada BLOCK_TIME segundos.
-    Los nodos no-validadores solo propagan bloques y transacciones.
-    """
 
     def __init__(
         self,
@@ -76,123 +41,80 @@ class P2PNode:
         bootstrap_peers: list,
         blockchain:      Blockchain,
         seed_host:       str = SEED_HOST,
+        wallet:          Optional[Wallet] = None,
+        role:            str = 'full',
+        dashboard_port:  int = 8000,
     ):
-        self.id   = f"node_{port}"
-        self.host = host
-        self.port = port
-
-        self.blockchain = blockchain
-        self.wallet     = Wallet()
+        self.id             = f"node_{port}"
+        self.host           = host
+        self.port           = port
+        self.blockchain     = blockchain
+        self.wallet         = wallet if wallet is not None else Wallet()
+        self.node_role      = role
+        self.dashboard_port = dashboard_port
+        self.display_name   = self.id
+        self.institucion    = ''
 
         self.peers_connected: Dict[str, websockets.WebSocketServerProtocol] = {}
         self.peers_known:     Dict[str, PeerInfo] = {}
 
         for b_host, b_port in bootstrap_peers:
-            addr = f"{b_host}:{b_port}"
-            self.peers_known[addr] = PeerInfo(b_host, b_port)
+            self.peers_known[f"{b_host}:{b_port}"] = PeerInfo(b_host, b_port)
 
-        self.messages_seen:    Set[str] = set()
-        self.MAX_MESSAGES_SEEN = 1000
-
+        self.messages_seen: Set[str] = set()
+        self.MAX_MESSAGES_SEEN       = 1000
         self.MAX_OUTBOUND_CONNECTIONS = MAX_OUTBOUND_CONNECTIONS
         self.MAX_INBOUND_CONNECTIONS  = MAX_INBOUND_CONNECTIONS
         self.MAX_PEERS_TO_SHARE       = MAX_PEERS_TO_SHARE
-
         self.GOSSIP_INTERVAL  = GOSSIP_INTERVAL
         self.PING_INTERVAL    = PING_INTERVAL
         self.CLEANUP_INTERVAL = CLEANUP_INTERVAL
 
         self.seed_client = SeedClient(
-            node_id=self.id,
-            host=self.host,
-            port=self.port,
-            seed_host=seed_host,
-            seed_port=SEED_PORT,
+            node_id=self.id, host=self.host, port=self.port,
+            seed_host=seed_host, seed_port=SEED_PORT,
         )
 
         self.loop: Optional[asyncio.AbstractEventLoop] = None
+        self.blocks_mined: int = 0
 
-        # ── Modo del nodo ──────────────────────────────────────
-        # Un nodo es validador si su wallet está en AUTHORIZED_VALIDATORS.
-        # Esto se evalúa DESPUÉS de que el launcher configura config en runtime.
-        # Por eso arrancamos en paused y el validator_loop arranca en start().
-        self.mining_mode: str = NODE_PAUSED
-
-        # Stats (compatibilidad con app.py)
-        self.blocks_mined:   int   = 0
-        self.mining_rewards: float = 0.0
-
-        # Estado del validador (reemplaza mining_progress de PoW)
-        self.mining_progress: dict = {
-            'active':   False,
-            'attempts': 0,
-            'hashrate': 0.0,
-        }
-
-        self.node_role = NODE_ROLE
         self.logger = setup_logger(self.id)
-        self.dashboard_port = 8000
 
-    # ──────────────────────────────────────────────────────────
-    # Arranque
-    # ──────────────────────────────────────────────────────────
+    # ── Arranque ───────────────────────────────────────────
 
     async def start(self):
         self.loop = asyncio.get_running_loop()
-
-        is_validator = self.wallet.address in AUTHORIZED_VALIDATORS
-        self.logger.info(f"[INIT] {self.id} en {self.host}:{self.port}")
-        self.logger.info(f"[WALLET] {self.wallet.address}")
-        self.logger.info(f"[ROL] {'VALIDADOR' if is_validator else 'NODO COMPLETO'}")
-
-        await self._bootstrap_from_seed()
-
-        server = await websockets.serve(
-            self.handle_incoming_connection,
-            self.host,
-            self.port,
+        can_produce = self.wallet.address in config.AUTHORIZED_VALIDATORS
+        self.logger.info(
+            f"[INIT] {self.id} | rol={self.node_role} | "
+            f"{'PUEDE SELLAR BLOQUES' if can_produce else 'solo propaga'}"
         )
-        self.logger.info(f"[OK] Servidor en ws://{self.host}:{self.port}")
-
+        await self._bootstrap_from_seed()
+        await websockets.serve(self.handle_incoming_connection, self.host, self.port)
+        self.logger.info(f"[OK] ws://{self.host}:{self.port}")
         asyncio.create_task(self.connect_to_bootstrap())
         asyncio.create_task(self.gossip_loop())
         asyncio.create_task(self.ping_loop())
         asyncio.create_task(self.cleanup_loop())
         asyncio.create_task(self.seed_register_loop())
-
-        # Solo los validadores autorizados producen bloques
-        if is_validator:
-            self.mining_mode = VALIDATOR_AUTO
-            asyncio.create_task(self.start_validator_loop())
-            self.logger.info(f"[POA] Validator loop iniciado (cada {BLOCK_TIME}s)")
-
         await asyncio.Future()
 
     async def _bootstrap_from_seed(self):
         loop = asyncio.get_running_loop()
-
         registered = await loop.run_in_executor(None, self.seed_client.register)
         if not registered:
-            self.logger.warning("[SEED] No disponible — usando solo bootstrap peers")
+            self.logger.warning("[SEED] No disponible")
             return
-
         await loop.run_in_executor(
             None,
             lambda: self.seed_client.announce_address(self.wallet.address, self.dashboard_port)
         )
-
-        peers_from_seed = await loop.run_in_executor(None, self.seed_client.get_peers)
-        for peer_data in peers_from_seed:
-            addr = f"{peer_data['host']}:{peer_data['port']}"
+        peers = await loop.run_in_executor(None, self.seed_client.get_peers)
+        for p in peers:
+            addr = f"{p['host']}:{p['port']}"
             if addr not in self.peers_known:
-                self.peers_known[addr] = PeerInfo(
-                    peer_data['host'],
-                    peer_data['port'],
-                    peer_data.get('node_id'),
-                )
-                self.logger.info(f"[SEED] Peer: {addr}")
-
-        self.logger.info(f"[SEED] {len(peers_from_seed)} peers. Total: {len(self.peers_known)}")
+                self.peers_known[addr] = PeerInfo(p['host'], p['port'], p.get('node_id'))
+        self.logger.info(f"[SEED] {len(peers)} peers")
 
     async def seed_register_loop(self):
         await asyncio.sleep(30)
@@ -200,141 +122,82 @@ class P2PNode:
             try:
                 loop = asyncio.get_running_loop()
                 await loop.run_in_executor(None, self.seed_client.register)
-            except Exception as e:
-                self.logger.warning(f"[SEED] Re-registro: {e}")
+            except Exception:
+                pass
             await asyncio.sleep(self.CLEANUP_INTERVAL)
 
-    # ──────────────────────────────────────────────────────────
-    # Validator loop (reemplaza mining_loop)
-    # ──────────────────────────────────────────────────────────
-
-    async def start_validator_loop(self):
-        """
-        Produce bloques PoA automáticamente cada BLOCK_TIME segundos.
-
-        A diferencia del mining_loop de PoW, esto es casi instantáneo —
-        firmar un hash con Ed25519 toma microsegundos.
-        El delay es artificial para que el demo sea legible.
-        """
-        self.logger.info(f"[VALIDATOR] Loop iniciado")
-        self.mining_mode = VALIDATOR_AUTO
-
-        while self.mining_mode == VALIDATOR_AUTO:
-            await asyncio.sleep(BLOCK_TIME)
-
-            if not self.blockchain.mempool:
-                self.logger.debug("[VALIDATOR] Mempool vacío, esperando...")
-                continue
-
-            self.mining_progress = {'active': True, 'attempts': 0, 'hashrate': 0.0}
-
-            try:
-                loop  = asyncio.get_running_loop()
-                # Ejecutar en executor para no bloquear el event loop
-                # (aunque en PoA es casi instantáneo, mantenemos el patrón)
-                block = await loop.run_in_executor(
-                    None,
-                    lambda: self.blockchain.produce_block_poa(self.wallet)
-                )
-
-                if block:
-                    self.blocks_mined   += 1
-                    self.mining_rewards += 0  # sin recompensa en PoA
-                    self.logger.info(
-                        f"[VALIDATOR] Bloque #{self.blockchain.get_height() - 1} "
-                        f"→ {len(self.peers_connected)} peers"
-                    )
-                    await self.broadcast_block(block)
-
-            except Exception as e:
-                self.logger.error(f"[VALIDATOR] Error produciendo bloque: {e}")
-            finally:
-                self.mining_progress = {'active': False, 'attempts': 0, 'hashrate': 0.0}
-
-    def set_node_mode(self, mode: str):
-        """
-        Cambia el modo del nodo.
-        Llamado desde app.py (endpoints /api/mine/auto y /api/mine/manual).
-        """
-        self.mining_mode = mode
-        self.logger.info(f"[MODE] Modo cambiado a: {mode}")
-
-    # Alias para compatibilidad con app.py que llama set_mining_mode()
-    def set_mining_mode(self, mode: str):
-        self.set_node_mode(mode)
+    # ── Producción de bloques — MANUAL, solo issuers ───────
 
     async def mine_once(self):
         """
-        Produce un bloque PoA manualmente (endpoint /api/mine/once).
-        En PoA esto es simplemente produce_block_poa().
+        Sella un bloque PoA con las TXs actuales del mempool.
+        Solo funciona para issuers autorizados (config.AUTHORIZED_VALIDATORS).
         """
-        if self.wallet.address not in AUTHORIZED_VALIDATORS:
-            self.logger.warning("[MINE_ONCE] Este nodo no es validador autorizado")
-            return
+        if self.wallet.address not in config.AUTHORIZED_VALIDATORS:
+            self.logger.warning(f"[SEAL] {self.node_role} no puede sellar bloques")
+            return None
 
-        block = self.blockchain.produce_block_poa(self.wallet)
-        if block:
-            self.blocks_mined += 1
-            await self.broadcast_block(block)
-            self.logger.info(f"[MINE_ONCE] Bloque #{self.blockchain.get_height() - 1} producido")
+        if not self.blockchain.mempool:
+            self.logger.info("[SEAL] Mempool vacío")
+            return None
 
-    # ──────────────────────────────────────────────────────────
-    # Conexiones entrantes
-    # ──────────────────────────────────────────────────────────
+        try:
+            loop  = asyncio.get_running_loop()
+            block = await loop.run_in_executor(
+                None, lambda: self.blockchain.produce_block_poa(self.wallet)
+            )
+            if block:
+                self.blocks_mined += 1
+                self.logger.info(
+                    f"[SEAL] Bloque #{self.blockchain.get_height()-1} "
+                    f"({len(block.transactions)} TXs)"
+                )
+                await self.broadcast_block(block)
+            return block
+        except Exception as e:
+            self.logger.error(f"[SEAL] Error: {e}")
+            return None
+    # ── Conexiones entrantes ───────────────────────────────
 
     async def handle_incoming_connection(self, websocket, path="/"):
-        peer_addr = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-        self.logger.info(f"[CONN] Conexión entrante: {peer_addr}")
-
         if len(self.peers_connected) >= self.MAX_INBOUND_CONNECTIONS:
-            self.logger.warning(f"[CONN] Rechazada: máximo de conexiones entrantes")
             await websocket.close()
             return
-
         try:
             async for raw in websocket:
                 try:
                     msg = json.loads(raw)
-                    if not validate_message(msg):
-                        continue
-                    await self._route_message(msg, websocket)
+                    if validate_message(msg):
+                        await self._route_message(msg, websocket)
                 except json.JSONDecodeError:
-                    self.logger.warning(f"[CONN] JSON inválido de {peer_addr}")
+                    pass
         except websockets.exceptions.ConnectionClosed:
             pass
         finally:
             self._cleanup_peer(websocket)
 
     async def _route_message(self, msg: dict, sender_ws):
-        msg_type = msg.get('type')
-        msg_id   = msg.get('id', '')
-
+        msg_id = msg.get('id', '')
         if msg_id in self.messages_seen:
             return
         self.messages_seen.add(msg_id)
         if len(self.messages_seen) > self.MAX_MESSAGES_SEEN:
             self.messages_seen = set(list(self.messages_seen)[-500:])
 
-        if msg_type == MSG_VERSION:
-            await self.handle_version(msg, sender_ws)
-        elif msg_type == MSG_VERACK:
-            await self.handle_verack(msg, sender_ws)
-        elif msg_type == MSG_PING:
-            await self.handle_ping(msg, sender_ws)
-        elif msg_type == MSG_PONG:
-            pass
-        elif msg_type == MSG_GETADDR:
-            await self.handle_getaddr(sender_ws)
-        elif msg_type == MSG_ADDR:
-            await self.handle_addr(msg)
-        elif msg_type == MSG_TX:
-            await self.handle_tx(msg, sender_ws)
-        elif msg_type == MSG_BLOCK:
-            await self.handle_block(msg, sender_ws)
-        elif msg_type == MSG_INV:
-            await self.handle_inv(msg, sender_ws)
-        elif msg_type == MSG_GETBLOCKS:
-            await self.handle_getblocks(sender_ws)
+        t = msg.get('type')
+        handlers = {
+            MSG_VERSION:   lambda: self.handle_version(msg, sender_ws),
+            MSG_PING:      lambda: self.handle_ping(msg, sender_ws),
+            MSG_GETADDR:   lambda: self.handle_getaddr(sender_ws),
+            MSG_ADDR:      lambda: self.handle_addr(msg),
+            MSG_TX:        lambda: self.handle_tx(msg, sender_ws),
+            MSG_BLOCK:     lambda: self.handle_block(msg, sender_ws),
+            MSG_INV:       lambda: self.handle_inv(msg, sender_ws),
+            MSG_GETBLOCKS: lambda: self.handle_getblocks(sender_ws),
+        }
+        handler = handlers.get(t)
+        if handler:
+            await handler()
 
     def _cleanup_peer(self, websocket):
         for addr, ws in list(self.peers_connected.items()):
@@ -342,12 +205,9 @@ class P2PNode:
                 del self.peers_connected[addr]
                 if addr in self.peers_known:
                     self.peers_known[addr].mark_disconnected()
-                self.logger.info(f"[CONN] Desconectado: {addr}")
                 break
 
-    # ──────────────────────────────────────────────────────────
-    # Conexiones salientes
-    # ──────────────────────────────────────────────────────────
+    # ── Conexiones salientes ───────────────────────────────
 
     async def connect_to_bootstrap(self):
         await asyncio.sleep(2)
@@ -357,26 +217,19 @@ class P2PNode:
 
     async def _connect_to_peer(self, host: str, port: int):
         addr = f"{host}:{port}"
-        if addr == f"{self.host}:{self.port}":
-            return
-        if addr in self.peers_connected:
-            return
-        if len(self.peers_connected) >= self.MAX_OUTBOUND_CONNECTIONS:
-            return
-
+        if addr == f"{self.host}:{self.port}": return
+        if addr in self.peers_connected: return
+        if len(self.peers_connected) >= self.MAX_OUTBOUND_CONNECTIONS: return
         try:
             ws = await asyncio.wait_for(
-                websockets.connect(f"ws://{host}:{port}"),
-                timeout=CONNECT_TIMEOUT
+                websockets.connect(f"ws://{host}:{port}"), timeout=CONNECT_TIMEOUT
             )
             self.peers_connected[addr] = ws
             if addr in self.peers_known:
                 self.peers_known[addr].mark_connected()
-            self.logger.info(f"[CONN] Conectado a {addr}")
-
             await self._send_version(ws)
             asyncio.create_task(self._listen_to_peer(ws, addr))
-
+            self.logger.info(f"[CONN] → {addr}")
         except Exception as e:
             self.logger.debug(f"[CONN] Falló {addr}: {e}")
             if addr in self.peers_known:
@@ -396,281 +249,176 @@ class P2PNode:
         finally:
             self._cleanup_peer(websocket)
 
-    # ──────────────────────────────────────────────────────────
-    # Handshake
-    # ──────────────────────────────────────────────────────────
+    # ── Handshake ──────────────────────────────────────────
 
     async def _send_version(self, websocket):
-        msg = create_message(MSG_VERSION, {
-            'node_id':    self.id,
-            'host':       self.host,
-            'port':       self.port,
-            'height':     self.blockchain.get_height(),
-            'user_agent': 'blockchain-certs/1.0',
-        })
-        await websocket.send(json.dumps(msg))
+        await websocket.send(json.dumps(create_message(MSG_VERSION, {
+            'node_id': self.id, 'host': self.host,
+            'port': self.port, 'height': self.blockchain.get_height(),
+        })))
 
     async def handle_version(self, msg: dict, sender_ws):
         try:
-            payload  = msg['payload']
-            peer_host = payload.get('host', sender_ws.remote_address[0])
-            peer_port = payload.get('port')
-
+            p = msg['payload']
+            peer_host = p.get('host', sender_ws.remote_address[0])
+            peer_port = p.get('port')
             if peer_port:
                 addr = f"{peer_host}:{peer_port}"
                 if addr not in self.peers_connected:
                     self.peers_connected[addr] = sender_ws
                 if addr not in self.peers_known:
-                    self.peers_known[addr] = PeerInfo(peer_host, peer_port, payload.get('node_id'))
+                    self.peers_known[addr] = PeerInfo(peer_host, peer_port, p.get('node_id'))
                 self.peers_known[addr].mark_connected()
-
-            verack = create_message(MSG_VERACK, {'node_id': self.id})
-            await sender_ws.send(json.dumps(verack))
-
-            # Solicitar sincronización si el peer tiene más bloques
-            if payload.get('height', 0) > self.blockchain.get_height():
+            await sender_ws.send(json.dumps(create_message(MSG_VERACK, {'node_id': self.id})))
+            if p.get('height', 0) > self.blockchain.get_height():
                 await self._request_chain_sync(sender_ws)
-
         except Exception as e:
-            self.logger.error(f"[VERSION] Error: {e}")
-
-    async def handle_verack(self, msg: dict, sender_ws):
-        pass
-
-    # ──────────────────────────────────────────────────────────
-    # Ping / Pong
-    # ──────────────────────────────────────────────────────────
+            self.logger.error(f"[VERSION] {e}")
 
     async def handle_ping(self, msg: dict, sender_ws):
-        pong = create_message(MSG_PONG, {'nonce': msg['payload'].get('nonce')})
-        await sender_ws.send(json.dumps(pong))
+        await sender_ws.send(json.dumps(
+            create_message(MSG_PONG, {'nonce': msg['payload'].get('nonce')})
+        ))
 
-    # ──────────────────────────────────────────────────────────
-    # Gossip de peers
-    # ──────────────────────────────────────────────────────────
+    # ── Gossip ─────────────────────────────────────────────
 
     async def handle_getaddr(self, sender_ws):
         peers_list = [
             info.to_dict()
-            for addr, info in list(self.peers_known.items())[:self.MAX_PEERS_TO_SHARE]
+            for _, info in list(self.peers_known.items())[:self.MAX_PEERS_TO_SHARE]
         ]
-        msg = create_message(MSG_ADDR, {'peers': peers_list})
-        await sender_ws.send(json.dumps(msg))
+        await sender_ws.send(json.dumps(create_message(MSG_ADDR, {'peers': peers_list})))
 
     async def handle_addr(self, msg: dict):
-        for peer_data in msg['payload'].get('peers', []):
-            addr = f"{peer_data['host']}:{peer_data['port']}"
+        for p in msg['payload'].get('peers', []):
+            addr = f"{p['host']}:{p['port']}"
             if addr not in self.peers_known and addr != f"{self.host}:{self.port}":
-                self.peers_known[addr] = PeerInfo.from_dict(peer_data)
-                asyncio.create_task(
-                    self._connect_to_peer(peer_data['host'], peer_data['port'])
-                )
+                self.peers_known[addr] = PeerInfo.from_dict(p)
+                asyncio.create_task(self._connect_to_peer(p['host'], p['port']))
 
     async def request_peers(self, websocket):
-        getaddr = create_message(MSG_GETADDR, {})
-        await websocket.send(json.dumps(getaddr))
+        await websocket.send(json.dumps(create_message(MSG_GETADDR, {})))
 
-    # ──────────────────────────────────────────────────────────
-    # Handlers — bloques
-    # ──────────────────────────────────────────────────────────
+    # ── Bloques ────────────────────────────────────────────
 
     async def handle_block(self, msg: dict, sender_ws):
         try:
             payload = msg['payload']
-
-            # Cadena completa (sincronización)
             if payload.get('type') == 'full_chain':
-                self._process_full_chain(payload.get('chain', []))
+                new_chain = Blockchain.chain_from_dicts(payload.get('chain', []))
+                if self.blockchain.replace_chain(new_chain):
+                    self.logger.info(f"[SYNC] → #{self.blockchain.get_height()}")
                 return
 
-            # Bloque individual
-            block    = Block.from_dict(payload)
-            prev     = self.blockchain.get_latest_block()
-            is_next  = block.header.prev_hash == prev.hash
+            block   = Block.from_dict(payload)
+            is_next = block.header.prev_hash == self.blockchain.get_latest_block().hash
 
             if is_next:
                 if self.blockchain.add_block(block):
-                    self.logger.info(
-                        f"[BLOCK] Aceptado #{self.blockchain.get_height() - 1}: "
-                        f"{block.hash[:16]}..."
-                    )
+                    self.logger.info(f"[BLOCK] ✓ #{self.blockchain.get_height()-1}")
                     await self.broadcast_block(block, exclude_ws=sender_ws)
             else:
-                self.logger.info("[BLOCK] No conecta — solicitando sincronización")
                 await self._request_chain_sync(sender_ws)
-
         except Exception as e:
-            self.logger.error(f"[BLOCK] Error: {e}")
+            self.logger.error(f"[BLOCK] {e}")
 
     async def handle_inv(self, msg: dict, sender_ws):
         try:
-            inv_hash   = msg['payload'].get('hash')
-            inv_height = msg['payload'].get('height', 0)
-
-            if not inv_hash:
-                return
-            if self.blockchain.get_block_by_hash(inv_hash):
-                return
-
-            if inv_height > self.blockchain.get_height():
+            if msg['payload'].get('height', 0) > self.blockchain.get_height():
                 await self._request_chain_sync(sender_ws)
-
-        except Exception as e:
-            self.logger.error(f"[INV] Error: {e}")
+        except Exception:
+            pass
 
     async def handle_getblocks(self, sender_ws):
         try:
-            chain_data = self.blockchain.get_chain_as_dicts()
-            msg = create_message(MSG_BLOCK, {
-                'chain':  chain_data,
+            await sender_ws.send(json.dumps(create_message(MSG_BLOCK, {
+                'chain': self.blockchain.get_chain_as_dicts(),
                 'height': self.blockchain.get_height(),
-                'type':   'full_chain',
-            })
-            await sender_ws.send(json.dumps(msg))
+                'type': 'full_chain',
+            })))
         except Exception as e:
-            self.logger.error(f"[GETBLOCKS] Error: {e}")
+            self.logger.error(f"[GETBLOCKS] {e}")
 
     async def _request_chain_sync(self, websocket):
         try:
-            msg = create_message(MSG_GETBLOCKS, {'height': self.blockchain.get_height()})
-            await websocket.send(json.dumps(msg))
-        except Exception as e:
-            self.logger.error(f"[SYNC] Error: {e}")
-
-    def _process_full_chain(self, chain_data: list) -> bool:
-        try:
-            new_chain = Blockchain.chain_from_dicts(chain_data)
-            replaced  = self.blockchain.replace_chain(new_chain)
-            if replaced:
-                self.logger.info(f"[SYNC] Cadena reemplazada. Altura: {self.blockchain.get_height()}")
-            return replaced
-        except Exception as e:
-            self.logger.error(f"[SYNC] Error: {e}")
-            return False
-
-    # ──────────────────────────────────────────────────────────
-    # Broadcast
-    # ──────────────────────────────────────────────────────────
+            await websocket.send(json.dumps(
+                create_message(MSG_GETBLOCKS, {'height': self.blockchain.get_height()})
+            ))
+        except Exception:
+            pass
 
     async def broadcast_block(self, block: Block, exclude_ws=None):
-        inv_msg = create_message(MSG_INV, {
-            'hash':   block.hash,
-            'height': self.blockchain.get_height(),
-        })
-        await self.broadcast_message(inv_msg, exclude_ws=exclude_ws)
-
-        block_msg = create_message(MSG_BLOCK, block.to_dict())
-        await self.broadcast_message(block_msg, exclude_ws=exclude_ws)
-
-        self.logger.info(
-            f"[BROADCAST] Bloque {block.hash[:16]}... → {len(self.peers_connected)} peers"
+        await self.broadcast_message(
+            create_message(MSG_INV, {'hash': block.hash, 'height': self.blockchain.get_height()}),
+            exclude_ws=exclude_ws
         )
+        await self.broadcast_message(create_message(MSG_BLOCK, block.to_dict()), exclude_ws=exclude_ws)
 
-    # ──────────────────────────────────────────────────────────
-    # Handlers — transacciones
-    # ──────────────────────────────────────────────────────────
+    # ── Transacciones ──────────────────────────────────────
 
     async def handle_tx(self, msg: dict, sender_ws):
         try:
-            tx       = Transaction.from_dict(msg['payload'])
-            accepted = self.blockchain.add_transaction_to_mempool(tx)
-            if accepted:
-                self.logger.info(f"[TX] Aceptada: {tx.short_hash()}")
+            tx = Transaction.from_dict(msg['payload'])
+            if self.blockchain.add_transaction_to_mempool(tx):
                 await self.broadcast_transaction(tx, exclude_ws=sender_ws)
         except Exception as e:
-            self.logger.error(f"[TX] Error: {e}")
+            self.logger.error(f"[TX] {e}")
 
     async def broadcast_transaction(self, tx: Transaction, exclude_ws=None):
-        msg = create_message(MSG_TX, tx.to_dict())
-        await self.broadcast_message(msg, exclude_ws=exclude_ws)
+        await self.broadcast_message(create_message(MSG_TX, tx.to_dict()), exclude_ws=exclude_ws)
 
     def create_transaction(self, to_address: str, amount: float) -> Transaction:
-        if not self.blockchain.has_sufficient_balance(self.wallet.address, amount):
-            raise ValueError(
-                f"Balance insuficiente: "
-                f"tienes {self.get_balance():.2f}, intentas enviar {amount}"
-            )
-        tx = Transaction(
-            from_address=self.wallet.address,
-            to_address=to_address,
-            amount=amount,
-        )
+        tx = Transaction(from_address=self.wallet.address, to_address=to_address, amount=amount)
         tx.sign(self.wallet)
         self.blockchain.add_transaction_to_mempool(tx)
         return tx
 
-    def get_balance(self) -> float:
-        return self.blockchain.get_balance(self.wallet.address)
-
-    # ──────────────────────────────────────────────────────────
-    # Broadcast genérico
-    # ──────────────────────────────────────────────────────────
+    # ── Broadcast genérico ─────────────────────────────────
 
     async def broadcast_message(self, msg: dict, exclude_ws=None):
-        for addr, ws in list(self.peers_connected.items()):
+        for _, ws in list(self.peers_connected.items()):
             if ws == exclude_ws:
                 continue
             try:
                 await ws.send(json.dumps(msg))
-            except Exception as e:
-                self.logger.error(f"[BROADCAST] Error a {addr}: {e}")
+            except Exception:
+                pass
 
-    # ──────────────────────────────────────────────────────────
-    # Loops periódicos (sin cambios)
-    # ──────────────────────────────────────────────────────────
+    # ── Loops periódicos ───────────────────────────────────
 
     async def gossip_loop(self):
         await asyncio.sleep(10)
         while True:
-            try:
-                for addr, ws in list(self.peers_connected.items()):
-                    try:
-                        await self.request_peers(ws)
-                    except Exception:
-                        pass
-                self.logger.info(
-                    f"[GOSSIP] Conocidos: {len(self.peers_known)}, "
-                    f"Conectados: {len(self.peers_connected)}"
-                )
-            except Exception as e:
-                self.logger.error(f"[GOSSIP] Error: {e}")
+            for _, ws in list(self.peers_connected.items()):
+                try:
+                    await self.request_peers(ws)
+                except Exception:
+                    pass
             await asyncio.sleep(self.GOSSIP_INTERVAL)
 
     async def ping_loop(self):
         await asyncio.sleep(15)
         while True:
-            try:
-                for addr, ws in list(self.peers_connected.items()):
-                    try:
-                        ping = create_message(MSG_PING, {
-                            'nonce': int(datetime.now().timestamp())
-                        })
-                        await ws.send(json.dumps(ping))
-                    except Exception:
-                        pass
-            except Exception as e:
-                self.logger.error(f"[PING] Error: {e}")
+            for _, ws in list(self.peers_connected.items()):
+                try:
+                    await ws.send(json.dumps(
+                        create_message(MSG_PING, {'nonce': int(datetime.now().timestamp())})
+                    ))
+                except Exception:
+                    pass
             await asyncio.sleep(self.PING_INTERVAL)
 
     async def cleanup_loop(self):
         while True:
             await asyncio.sleep(self.CLEANUP_INTERVAL)
-            try:
-                self.messages_seen = set(list(self.messages_seen)[-500:])
-                now = datetime.now().timestamp()
-                to_remove = [
-                    addr for addr, peer in self.peers_known.items()
-                    if not peer.is_connected and (now - peer.last_seen) > 86400
-                ]
-                for addr in to_remove:
-                    del self.peers_known[addr]
-            except Exception as e:
-                self.logger.error(f"[CLEANUP] Error: {e}")
+            self.messages_seen = set(list(self.messages_seen)[-500:])
+            now   = datetime.now().timestamp()
+            stale = [
+                addr for addr, peer in self.peers_known.items()
+                if not peer.is_connected and (now - peer.last_seen) > 86400
+            ]
+            for addr in stale:
+                del self.peers_known[addr]
 
     def __repr__(self):
-        return (
-            f"P2PNode(id={self.id}, "
-            f"peers={len(self.peers_connected)}, "
-            f"height={self.blockchain.get_height()}, "
-            f"mode={self.mining_mode})"
-        )
+        return f"P2PNode(id={self.id}, role={self.node_role}, peers={len(self.peers_connected)})"

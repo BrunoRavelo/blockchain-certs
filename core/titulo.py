@@ -24,7 +24,6 @@ CAMPOS_REQUERIDOS = [
     "matricula",
     "carrera",
     "institucion",
-    "rvoe",
     "fecha",
     "hash_doc",
 ]
@@ -32,14 +31,15 @@ CAMPOS_REQUERIDOS = [
 
 def build_titulo_tx(
     secretaria_wallet,
-    egresado_address: str,
-    nombre:       str,
-    matricula:    str,
-    carrera:      str,
-    fecha:        str,
-    rvoe:         str,
-    pdf_bytes:    bytes,
-    institucion:  str = None,
+    egresado_address:  str,
+    nombre:            str,
+    matricula:         str,
+    carrera:           str,
+    fecha:             str,
+    rvoe:              str = '',
+    pdf_bytes:         bytes = b'',
+    institucion:       str = None,
+    tipo_certificado:  str = 'Certificado Total de Estudios',
 ) -> Transaction:
     """
     Construye una TX de título universitario correctamente formada.
@@ -66,18 +66,25 @@ def build_titulo_tx(
     if institucion is None:
         institucion = config.NOMBRE_INSTITUCION
 
-    hash_doc = hashlib.sha256(pdf_bytes).hexdigest()
+    # Si no hay PDF, generar hash desde los datos del certificado
+    # Esto garantiza que el hash es único y reproducible para ese egresado
+    if pdf_bytes:
+        hash_doc = hashlib.sha256(pdf_bytes).hexdigest()
+    else:
+        cert_data = f"{nombre}|{matricula}|{carrera}|{institucion}|{fecha}|{tipo_certificado}"
+        hash_doc = hashlib.sha256(cert_data.encode()).hexdigest()
 
     tx = Transaction(
         from_address = secretaria_wallet.address,
         to_address   = egresado_address,
         amount       = 1,
         data = {
-            "tipo":        "titulo_universitario",
-            "nombre":      nombre,
-            "matricula":   matricula,
-            "carrera":     carrera,
-            "institucion": institucion,
+            "tipo":             "titulo_universitario",
+            "tipo_certificado": tipo_certificado,
+            "nombre":           nombre,
+            "matricula":        matricula,
+            "carrera":          carrera,
+            "institucion":      institucion,
             "rvoe":        rvoe,
             "fecha":       fecha,
             "hash_doc":    hash_doc,
