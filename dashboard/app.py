@@ -4,7 +4,7 @@ Cada nodo tiene su propio rol y su propio dashboard.
 """
 
 import asyncio
-from flask import Flask, render_template, jsonify, request, redirect, send_file
+from flask import Flask, render_template, jsonify, request, send_file
 from io import BytesIO
 from core.titulo import (
     build_titulo_tx, validate_titulo_tx,
@@ -344,10 +344,6 @@ class NodeDashboard:
                         )
             return jsonify({'error': 'Certificado no encontrado'}), 404
 
-        # Tipos de certificado disponibles
-        @self.app.route('/api/title/tipos', methods=['GET'])
-        def api_title_tipos():
-            return jsonify(TIPOS_CERTIFICADO)
 
     def run(self):
         self.app.run(

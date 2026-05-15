@@ -28,10 +28,6 @@ CLEANUP_INTERVAL = 60
 # PoA — reemplaza toda la sección PoW/mining
 # ──────────────────────────────────────────────────────────
 
-# Segundos entre bloques. Sin puzzle computacional, el delay
-# es artificial para que el demo sea legible en pantalla.
-BLOCK_TIME = 10
-
 # Wallets autorizadas para firmar bloques.
 # Se pueblan en runtime por launcher_titulos.py — no hardcodear aquí.
 AUTHORIZED_VALIDATORS: list = []
